@@ -1287,7 +1287,6 @@ async function applyProject() {
   resolvedProject = data.project;
   await post<{ config: AppConfig }>("/api/config", project);
   appendLog(`项目配置已应用。\n${data.summary}`);
-  els.previewFrame.src = data.project.previewUrl;
   els.previewLabel.textContent = data.project.previewUrl;
   els.applyProject.textContent = "修改";
   els.codeRoot.disabled = true;
@@ -1383,7 +1382,8 @@ async function stopPreview() {
 }
 
 function reloadPreview() {
-  const url = els.previewLabel.textContent || "http://localhost:4321";
+  const url = els.previewLabel.textContent || resolvedProject?.previewUrl || "about:blank";
+  if (url === "未启动") return;
   els.previewFrame.src = url;
   els.previewLabel.textContent = url;
 }
@@ -1443,7 +1443,7 @@ els.deleteRecord.addEventListener("click", () => deleteRecordForm().catch(handle
 els.startPreview.addEventListener("click", () => startPreview().catch(handleError));
 els.stopPreview.addEventListener("click", () => stopPreview().catch(handleError));
 els.reloadPreview.addEventListener("click", reloadPreview);
-els.previewToggle.addEventListener("click", () => setPreviewOpen(true));
+els.previewToggle.addEventListener("click", () => startPreview().catch(handleError));
 els.closePreview.addEventListener("click", () => setPreviewOpen(false));
 els.imageLightboxClose.addEventListener("click", closeImageLightbox);
 els.imageLightbox.addEventListener("click", (event) => {
