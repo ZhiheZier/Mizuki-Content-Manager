@@ -1368,9 +1368,10 @@ async function saveFile() {
 async function startPreview() {
   if (!project) await applyProject();
   if (!(await checkContentGitBeforePreview())) return;
-  const data = await post<{ message: string; running?: boolean; ready?: boolean }>("/api/preview/start", { project });
+  const data = await post<{ message: string; running?: boolean; ready?: boolean; previewUrl?: string }>("/api/preview/start", { project });
   appendLog(data.message);
   if (data.running && data.ready) {
+    if (data.previewUrl) els.previewLabel.textContent = data.previewUrl;
     reloadPreview();
     setPreviewOpen(true);
   }

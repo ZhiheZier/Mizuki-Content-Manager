@@ -1,9 +1,17 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { DEFAULT_DEV_COMMAND, looksLikeMizukiRepo, type ResolvedProject } from "./source";
 
+type PreviewResult = {
+  running: boolean;
+  ready?: boolean;
+  previewUrl?: string;
+  message: string;
+};
+
 let processRef: ChildProcess | null = null;
 let meta: { codeRoot: string; command: string; startedAt: number } | null = null;
 let lastOutput = "";
+let lastPreviewUrl = "";
 
 function commandParts(command: string) {
   const parts = command.trim().split(/\s+/).filter(Boolean);
@@ -11,9 +19,16 @@ function commandParts(command: string) {
   return parts;
 }
 
+function detectPreviewUrl(text: string) {
+  const match = text.match(/https?:\/\/(?:localhost|127\.0\.0\.1):\d+/i);
+  return match?.[0] || "";
+}
+
 function appendOutput(chunk: unknown) {
   const text = String(chunk || "");
-  lastOutput = `${lastOutput}${text}`.split(/\r?\n/).slice(-12).join("\n");
+  lastOutput = `${lastOutput}${text}`.split(/\r?\n/).slice(-20).join("\n");
+  const detectedUrl = detectPreviewUrl(text);
+  if (detectedUrl) lastPreviewUrl = detectedUrl;
 }
 
 function spawnPreview(command: string, cwd: string) {
@@ -38,6 +53,7 @@ function sleep(ms: number) {
 }
 
 async function isPreviewReady(url: string) {
+  if (!url) return false;
   try {
     const response = await fetch(url, {
       signal: AbortSignal.timeout(1200)
@@ -48,42 +64,61 @@ async function isPreviewReady(url: string) {
   }
 }
 
-async function waitForPreview(url: string, child: ChildProcess, timeoutMs = 25000) {
-  const startedAt = Date.now();
-  while (Date.now() - startedAt < timeoutMs) {
-    if (child.exitCode !== null) return false;
-    if (await isPreviewReady(url)) return true;
-    await sleep(600);
+async function currentReadyUrl(fallbackUrl: string) {
+  const detectedUrl = lastPreviewUrl || detectPreviewUrl(lastOutput);
+  if (detectedUrl && await isPreviewReady(detectedUrl)) {
+    lastPreviewUrl = detectedUrl;
+    return detectedUrl;
   }
-  return false;
+  if (await isPreviewReady(fallbackUrl)) {
+    lastPreviewUrl = fallbackUrl;
+    return fallbackUrl;
+  }
+  return "";
 }
 
-export function previewStatus() {
-  if (!processRef) return { running: false, message: "预览服务未启动。" };
+async function waitForPreview(fallbackUrl: string, child: ChildProcess, timeoutMs = 25000) {
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < timeoutMs) {
+    const readyUrl = await currentReadyUrl(fallbackUrl);
+    if (readyUrl) return readyUrl;
+    if (child.exitCode !== null) return "";
+    await sleep(600);
+  }
+  return "";
+}
+
+export function previewStatus(): PreviewResult {
+  const previewUrl = lastPreviewUrl || "";
+  if (!processRef) return { running: false, previewUrl, message: "预览服务未启动。" };
   const code = processRef.exitCode;
   if (code === null) {
     const elapsed = meta ? Math.round((Date.now() - meta.startedAt) / 1000) : 0;
     return {
       running: true,
+      previewUrl,
       message: `预览服务运行中。\n代码仓库: ${meta?.codeRoot}\n命令: ${meta?.command}\n运行时长: ${elapsed}s`
     };
   }
-  return { running: false, message: `预览服务已退出，退出码 ${code}。\n${lastOutput}`.trim() };
+  return { running: false, previewUrl, message: `预览服务已退出，退出码 ${code}。\n${lastOutput}`.trim() };
 }
 
-export async function startPreview(project: ResolvedProject, command = DEFAULT_DEV_COMMAND) {
+export async function startPreview(project: ResolvedProject, command = DEFAULT_DEV_COMMAND): Promise<PreviewResult> {
   if (processRef && processRef.exitCode === null) {
-    const ready = await isPreviewReady(project.previewUrl);
-    return { ...previewStatus(), ready };
+    const previewUrl = await currentReadyUrl(project.previewUrl);
+    return { ...previewStatus(), ready: Boolean(previewUrl), previewUrl: previewUrl || lastPreviewUrl || project.previewUrl };
   }
   if (!looksLikeMizukiRepo(project.codeRoot)) {
     return {
       running: false,
+      ready: false,
+      previewUrl: project.previewUrl,
       message: `无法启动预览。未检测到 Mizuki/Astro 代码仓库: ${project.codeRoot}`
     };
   }
 
   lastOutput = "";
+  lastPreviewUrl = project.previewUrl;
 
   const child = spawnPreview(command, project.codeRoot);
   processRef = child;
@@ -91,9 +126,9 @@ export async function startPreview(project: ResolvedProject, command = DEFAULT_D
   child.stdout?.on("data", appendOutput);
   child.stderr?.on("data", appendOutput);
 
-  return new Promise<{ running: boolean; ready?: boolean; message: string }>((resolve) => {
+  return new Promise<PreviewResult>((resolve) => {
     let settled = false;
-    const finish = (result: { running: boolean; ready?: boolean; message: string }) => {
+    const finish = (result: PreviewResult) => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
@@ -101,19 +136,23 @@ export async function startPreview(project: ResolvedProject, command = DEFAULT_D
     };
 
     const timer = setTimeout(async () => {
-      const ready = await waitForPreview(project.previewUrl, child);
-      if (ready) {
+      const readyUrl = await waitForPreview(project.previewUrl, child);
+      if (readyUrl) {
         finish({
           ...previewStatus(),
-          ready,
-          message: `${previewStatus().message}\n预览地址已可访问: ${project.previewUrl}`
+          ready: true,
+          previewUrl: readyUrl,
+          message: `${previewStatus().message}\n预览地址已可访问: ${readyUrl}`
         });
         return;
       }
+
+      const previewUrl = lastPreviewUrl || project.previewUrl;
       finish({
         ...previewStatus(),
         ready: false,
-        message: `${previewStatus().message}\n预览进程已启动，但 ${project.previewUrl} 暂时还没有响应。\n请稍等几秒后再点“预览”或“刷新预览”。\n${lastOutput}`.trim()
+        previewUrl,
+        message: `${previewStatus().message}\n预览进程已启动，但 ${previewUrl} 暂时还没有响应。\n请稍等几秒后再点“预览”或“刷新预览”。\n${lastOutput}`.trim()
       });
     }, 900);
 
@@ -122,15 +161,33 @@ export async function startPreview(project: ResolvedProject, command = DEFAULT_D
       meta = null;
       finish({
         running: false,
+        ready: false,
+        previewUrl: project.previewUrl,
         message: `预览启动失败: ${error.message}\n请确认已安装 pnpm，并且 Mizuki 仓库可以在终端中运行 pnpm dev。`
       });
     });
 
     child.once("exit", (code) => {
+      const detectedUrl = lastPreviewUrl || detectPreviewUrl(lastOutput);
       processRef = null;
       meta = null;
+      if (detectedUrl) {
+        isPreviewReady(detectedUrl).then((ready) => {
+          finish({
+            running: ready,
+            ready,
+            previewUrl: detectedUrl,
+            message: ready
+              ? `检测到已有预览服务: ${detectedUrl}`
+              : `预览服务启动后退出，退出码 ${code ?? "未知"}。\n${lastOutput}`.trim()
+          });
+        });
+        return;
+      }
       finish({
         running: false,
+        ready: false,
+        previewUrl: project.previewUrl,
         message: `预览服务启动后立即退出，退出码 ${code ?? "未知"}。\n${lastOutput}`.trim()
       });
     });
