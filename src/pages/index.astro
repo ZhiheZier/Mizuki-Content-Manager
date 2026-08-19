@@ -98,6 +98,17 @@
             </div>
             <div id="albumImages" class="album-images"></div>
           </div>
+          <div id="blogContentMedia" class="album-media hidden">
+            <div class="album-media-head">
+              <div class="section-title">正文图片</div>
+              <div class="album-media-tools">
+                <span id="blogContentMediaCount" class="media-count">0 张</span>
+                <button id="blogContentUploadButton" type="button">上传正文图片</button>
+                <input id="blogContentUpload" type="file" accept="image/*" multiple />
+              </div>
+            </div>
+            <div id="blogContentImages" class="album-images"></div>
+          </div>
           <div class="record-actions">
             <button id="deleteRecord" class="danger" type="button">删除记录</button>
             <button id="saveRecord" class="primary" type="button">保存记录</button>
@@ -564,7 +575,7 @@
   }
 
   .record-actions {
-    justify-content: flex-end;
+    justify-content: space-between;
   }
 
   .record-head label {
@@ -882,11 +893,13 @@
     min-width: 0;
   }
 
-  #albumUpload {
+  #albumUpload,
+  #blogContentUpload {
     display: none;
   }
 
-  #albumUploadButton {
+  #albumUploadButton,
+  #blogContentUploadButton {
     min-height: 30px;
     padding: 5px 9px;
     font-size: 12px;

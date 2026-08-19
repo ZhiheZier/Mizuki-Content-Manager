@@ -71,6 +71,7 @@ let hydratingForm = false;
 let pendingSingleUpload: PendingImageUpload | null = null;
 let pendingDiaryUploads: PendingImageUpload[] = [];
 let pendingAlbumUploads: PendingImageUpload[] = [];
+let pendingBlogContentUploads: PendingImageUpload[] = [];
 const pendingManagedDeletes = new Set<string>();
 const pendingAlbumDeletes = new Set<string>();
 const logLines: string[] = [];
@@ -100,6 +101,11 @@ const els = {
   albumImages: $<HTMLDivElement>("albumImages"),
   albumUpload: $<HTMLInputElement>("albumUpload"),
   albumUploadButton: $<HTMLButtonElement>("albumUploadButton"),
+  blogContentMedia: $<HTMLDivElement>("blogContentMedia"),
+  blogContentMediaCount: $<HTMLSpanElement>("blogContentMediaCount"),
+  blogContentImages: $<HTMLDivElement>("blogContentImages"),
+  blogContentUpload: $<HTMLInputElement>("blogContentUpload"),
+  blogContentUploadButton: $<HTMLButtonElement>("blogContentUploadButton"),
   externalImageTools: $<HTMLSpanElement>("externalImageTools"),
   externalImageUrl: $<HTMLInputElement>("externalImageUrl"),
   addExternalImage: $<HTMLButtonElement>("addExternalImage"),
@@ -407,9 +413,11 @@ function clearPendingMedia() {
   revokePending(pendingSingleUpload);
   for (const upload of pendingDiaryUploads) revokePending(upload);
   for (const upload of pendingAlbumUploads) revokePending(upload);
+  for (const upload of pendingBlogContentUploads) revokePending(upload);
   pendingSingleUpload = null;
   pendingDiaryUploads = [];
   pendingAlbumUploads = [];
+  pendingBlogContentUploads = [];
   pendingManagedDeletes.clear();
   pendingAlbumDeletes.clear();
 }
@@ -629,6 +637,51 @@ function renderSingleImage() {
   els.albumImages.appendChild(card);
 }
 
+function blogBodyInput() {
+  return els.recordForm.querySelector<HTMLTextAreaElement>('[name="body"]');
+}
+
+function setBlogContentMediaVisible(visible: boolean) {
+  els.blogContentMedia.classList.toggle("hidden", !visible);
+  if (!visible) {
+    els.blogContentImages.innerHTML = "";
+    els.blogContentMediaCount.textContent = "0 张";
+  }
+}
+
+function blogContentEmptyText(message: string) {
+  const empty = document.createElement("div");
+  empty.className = "album-empty";
+  empty.textContent = message;
+  els.blogContentImages.appendChild(empty);
+}
+
+function renderBlogContentImages() {
+  if (activeCategory !== "blog") {
+    setBlogContentMediaVisible(false);
+    return;
+  }
+  setBlogContentMediaVisible(true);
+  els.blogContentImages.innerHTML = "";
+  els.blogContentMediaCount.textContent = `${pendingBlogContentUploads.length} 张`;
+
+  if (!pendingBlogContentUploads.length) {
+    blogContentEmptyText("上传正文图片后，点击保存记录才会写入 images/posts 并插入到文章正文。");
+    return;
+  }
+
+  for (const upload of pendingBlogContentUploads) {
+    const card = renderImageCard(`待上传 ${upload.file.name}`, upload.file.name, async () => {
+      if (!(await showConfirm("移除待上传图片？", `这只会移除待上传图片 ${upload.file.name}，不会改动本地文件。`, "移除"))) return;
+      pendingBlogContentUploads = pendingBlogContentUploads.filter((item) => item.id !== upload.id);
+      revokePending(upload);
+      markRecordDirty();
+      renderBlogContentImages();
+    }, upload.previewUrl);
+    els.blogContentImages.appendChild(card);
+  }
+}
+
 function renderDiaryImages() {
   if (activeCategory !== "diary") return;
   els.mediaTitle.textContent = "日记图片";
@@ -778,6 +831,17 @@ async function uploadAlbumImages() {
   els.albumUpload.value = "";
 }
 
+function addBlogContentImages() {
+  if (!project || activeCategory !== "blog") return;
+  const files = Array.from(els.blogContentUpload.files || []);
+  if (!files.length) return;
+  pendingBlogContentUploads.push(...files.map(createPendingUpload));
+  markRecordDirty();
+  renderBlogContentImages();
+  appendLog(`已暂存 ${files.length} 张正文图片，点击保存记录后写入本地。`);
+  els.blogContentUpload.value = "";
+}
+
 function addExternalImage() {
   const url = els.externalImageUrl.value.trim();
   if (!/^https?:\/\/\S+$/i.test(url)) {
@@ -845,6 +909,26 @@ async function uploadPendingRecordMedia() {
     const input = singleImageInput();
     if (input) input.value = data.path || "";
     appendLog(`已写入${singleImageTitle()}。`);
+  }
+
+  if (activeCategory === "blog" && pendingBlogContentUploads.length) {
+    const body = blogBodyInput();
+    if (!body) throw new Error("没有找到博客正文编辑框。");
+    const inserted: string[] = [];
+    for (const upload of pendingBlogContentUploads) {
+      const form = new FormData();
+      form.set("project", JSON.stringify(project));
+      form.set("folder", "posts");
+      form.append("files", upload.file);
+      const data = await uploadFiles("/api/media/image", form);
+      if (data.path) inserted.push(`![${upload.file.name}](${data.path})`);
+    }
+    if (inserted.length) {
+      const current = body.value.trimEnd();
+      body.value = `${current}${current ? "\n\n" : ""}${inserted.join("\n\n")}\n`;
+      body.dispatchEvent(new Event("input", { bubbles: true }));
+      appendLog(`已写入 ${inserted.length} 张博客正文图片。`);
+    }
   }
 }
 
@@ -983,6 +1067,8 @@ function setFormValues(record: Record<string, unknown> | null) {
   updateAlbumModeVisibility();
   if (activeCategory === "diary") renderDiaryImages();
   if (activeCategory === "blog" || activeCategory === "devices" || activeCategory === "anime") renderSingleImage();
+  if (activeCategory === "blog") renderBlogContentImages();
+  else setBlogContentMediaVisible(false);
   hydratingForm = false;
   recordDirty = false;
 }
@@ -1033,6 +1119,8 @@ async function loadRecordCategory(category: CategoryKey, preferredId = "") {
   else if (category === "diary") renderDiaryImages();
   else if (category === "blog" || category === "devices" || category === "anime") renderSingleImage();
   else setAlbumMediaVisible(false);
+  if (category === "blog") renderBlogContentImages();
+  else setBlogContentMediaVisible(false);
   setActiveCategory(category);
 }
 
@@ -1048,6 +1136,8 @@ async function loadSelectedRecord() {
   if (activeRecordConfig?.mode === "album-list") updateAlbumModeVisibility();
   if (activeCategory === "diary") renderDiaryImages();
   if (activeCategory === "blog" || activeCategory === "devices" || activeCategory === "anime") renderSingleImage();
+  if (activeCategory === "blog") renderBlogContentImages();
+  else setBlogContentMediaVisible(false);
 }
 
 async function saveRecordForm() {
@@ -1123,8 +1213,11 @@ async function newRecordForm() {
   } else if (activeCategory === "blog" || activeCategory === "devices" || activeCategory === "anime") {
     setAlbumMediaVisible(true);
     renderSingleImage();
+    if (activeCategory === "blog") renderBlogContentImages();
+    else setBlogContentMediaVisible(false);
   } else {
     setAlbumMediaVisible(false);
+    setBlogContentMediaVisible(false);
   }
 }
 
@@ -1302,6 +1395,8 @@ els.editor.addEventListener("input", markSourceDirty);
 els.recordPickerButton.addEventListener("click", () => setRecordPickerOpen(!els.recordPicker.classList.contains("open")));
 els.albumUploadButton.addEventListener("click", () => els.albumUpload.click());
 els.albumUpload.addEventListener("change", () => uploadAlbumImages().catch(handleError));
+els.blogContentUploadButton.addEventListener("click", () => els.blogContentUpload.click());
+els.blogContentUpload.addEventListener("change", addBlogContentImages);
 els.addExternalImage.addEventListener("click", addExternalImage);
 els.externalImageUrl.addEventListener("keydown", (event) => {
   if (event.key === "Enter") {

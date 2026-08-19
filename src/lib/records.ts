@@ -76,6 +76,7 @@ export const RECORD_CONFIGS: Record<RecordType, RecordConfig> = {
       { key: "published", label: "发布日期", input: "date" },
       { key: "updated", label: "更新日期", input: "date" },
       { key: "description", label: "描述", input: "textarea" },
+      { key: "body", label: "正文", input: "textarea" },
       { key: "image", label: "封面图片", input: "text" },
       { key: "tags", label: "标签", input: "tags" },
       { key: "category", label: "分类", input: "text" },
@@ -427,6 +428,9 @@ function collectManagedImagePaths(value: unknown): string[] {
     if (typeof item === "string") {
       const trimmed = item.trim();
       if (/^\/?images\//.test(trimmed)) paths.push(trimmed);
+      for (const match of item.matchAll(/(?:^|[(\s"'])((?:\/)?images\/[^\s)"']+\.(?:avif|gif|jpe?g|png|svg|webp))/gi)) {
+        paths.push(match[1]);
+      }
       return;
     }
     if (Array.isArray(item)) {
@@ -632,7 +636,7 @@ export function deleteRecord(project: ResolvedProject, type: RecordType, id?: st
   assertInside(project.contentRoot, file);
   if (!fs.existsSync(file)) throw new Error("没有找到要删除的文件。");
   const parsed = parseFrontmatter(fs.readFileSync(file, "utf8"));
-  const images = deleteManagedImages(project, parsed.data);
+  const images = deleteManagedImages(project, { ...parsed.data, body: parsed.body });
   fs.unlinkSync(file);
   return { ok: true, deletedImages: images };
 }
