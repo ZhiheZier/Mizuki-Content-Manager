@@ -563,18 +563,21 @@ function setDiaryImages(paths: string[]) {
 }
 
 function singleImageField() {
+  if (activeCategory === "blog") return "image";
   if (activeCategory === "devices") return "image";
   if (activeCategory === "anime") return "cover";
   return "";
 }
 
 function singleImageFolder() {
+  if (activeCategory === "blog") return "posts";
   if (activeCategory === "devices") return "device";
   if (activeCategory === "anime") return "anime";
   return "";
 }
 
 function singleImageTitle() {
+  if (activeCategory === "blog") return "博客封面";
   if (activeCategory === "devices") return "设备图片";
   if (activeCategory === "anime") return "追番封面";
   return "";
@@ -587,12 +590,12 @@ function singleImageInput() {
 }
 
 function renderSingleImage() {
-  if (activeCategory !== "devices" && activeCategory !== "anime") return;
+  if (activeCategory !== "blog" && activeCategory !== "devices" && activeCategory !== "anime") return;
   const input = singleImageInput();
   const imagePath = (input?.value || "").trim();
   els.mediaTitle.textContent = singleImageTitle();
   els.albumUploadButton.textContent = imagePath || pendingSingleUpload ? "修改图片" : "上传图片";
-  setExternalImageTools(false);
+  setExternalImageTools(activeCategory === "blog");
   setAlbumMediaVisible(true);
   els.albumImages.innerHTML = "";
   els.albumMediaCount.textContent = imagePath || pendingSingleUpload ? "1 张" : "0 张";
@@ -748,7 +751,7 @@ async function loadAlbumImages() {
 }
 
 async function uploadAlbumImages() {
-  if (!project || !["albums", "diary", "devices", "anime"].includes(activeCategory)) return;
+  if (!project || !["albums", "diary", "blog", "devices", "anime"].includes(activeCategory)) return;
   const files = Array.from(els.albumUpload.files || []);
   if (activeCategory === "albums" && !albumDirectoryName()) {
     appendLog("请先填写相册目录名。");
@@ -760,7 +763,7 @@ async function uploadAlbumImages() {
     pendingDiaryUploads.push(...files.map(createPendingUpload));
     markRecordDirty();
     renderDiaryImages();
-  } else if (activeCategory === "devices" || activeCategory === "anime") {
+  } else if (activeCategory === "blog" || activeCategory === "devices" || activeCategory === "anime") {
     revokePending(pendingSingleUpload);
     pendingSingleUpload = createPendingUpload(files[0]);
     markRecordDirty();
@@ -800,6 +803,17 @@ function addExternalImage() {
       appendLog(`已添加相册外链图片 ${url}`);
     }
     renderExternalAlbumImages();
+    return;
+  }
+
+  if (activeCategory === "blog") {
+    const input = singleImageInput();
+    if (input) input.value = url;
+    revokePending(pendingSingleUpload);
+    pendingSingleUpload = null;
+    markRecordDirty();
+    renderSingleImage();
+    appendLog(`已设置博客外链封面 ${url}`);
   }
 }
 
@@ -822,7 +836,7 @@ async function uploadPendingRecordMedia() {
     appendLog(`已写入 ${pendingDiaryUploads.length} 张日记图片。`);
   }
 
-  if ((activeCategory === "devices" || activeCategory === "anime") && pendingSingleUpload) {
+  if ((activeCategory === "blog" || activeCategory === "devices" || activeCategory === "anime") && pendingSingleUpload) {
     const form = new FormData();
     form.set("project", JSON.stringify(project));
     form.set("folder", singleImageFolder());
@@ -899,7 +913,7 @@ function renderRecordForm(config: RecordConfig) {
       label.classList.add("hidden-field");
       input.addEventListener("input", renderDiaryImages);
     }
-    if ((activeCategory === "devices" && field.key === "image") || (activeCategory === "anime" && field.key === "cover")) {
+    if ((activeCategory === "blog" && field.key === "image") || (activeCategory === "devices" && field.key === "image") || (activeCategory === "anime" && field.key === "cover")) {
       label.classList.add("hidden-field");
       input.addEventListener("input", renderSingleImage);
     }
@@ -968,7 +982,7 @@ function setFormValues(record: Record<string, unknown> | null) {
   }
   updateAlbumModeVisibility();
   if (activeCategory === "diary") renderDiaryImages();
-  if (activeCategory === "devices" || activeCategory === "anime") renderSingleImage();
+  if (activeCategory === "blog" || activeCategory === "devices" || activeCategory === "anime") renderSingleImage();
   hydratingForm = false;
   recordDirty = false;
 }
@@ -1017,7 +1031,7 @@ async function loadRecordCategory(category: CategoryKey, preferredId = "") {
   if (category === "albums" && activeRecordId) await loadAlbumImages();
   else if (category === "albums") updateAlbumModeVisibility();
   else if (category === "diary") renderDiaryImages();
-  else if (category === "devices" || category === "anime") renderSingleImage();
+  else if (category === "blog" || category === "devices" || category === "anime") renderSingleImage();
   else setAlbumMediaVisible(false);
   setActiveCategory(category);
 }
@@ -1033,7 +1047,7 @@ async function loadSelectedRecord() {
   setFormValues(data.record);
   if (activeRecordConfig?.mode === "album-list") updateAlbumModeVisibility();
   if (activeCategory === "diary") renderDiaryImages();
-  if (activeCategory === "devices" || activeCategory === "anime") renderSingleImage();
+  if (activeCategory === "blog" || activeCategory === "devices" || activeCategory === "anime") renderSingleImage();
 }
 
 async function saveRecordForm() {
@@ -1106,7 +1120,7 @@ async function newRecordForm() {
   } else if (activeCategory === "diary") {
     setAlbumMediaVisible(true);
     renderDiaryImages();
-  } else if (activeCategory === "devices" || activeCategory === "anime") {
+  } else if (activeCategory === "blog" || activeCategory === "devices" || activeCategory === "anime") {
     setAlbumMediaVisible(true);
     renderSingleImage();
   } else {
