@@ -128,6 +128,8 @@ CONTENT_DIR=./content
 - 追番封面：`images/anime`
 - 本地相册图片：`images/albums/<album-name>`
 
+本地相册的封面由相册目录里的 `cover.*` 图片决定，例如 `cover.webp` 或 `cover.jpg`。`info.json` 主要记录相册标题、描述、日期、加密等元信息；其中的 `cover` 字段只用于外链相册模式。
+
 删除记录时，管理器会尝试删除该记录引用的本地 `images/` 图片。外链图片只会移除引用，不会删除远程文件。
 
 ## 本地配置

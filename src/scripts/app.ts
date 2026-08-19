@@ -666,7 +666,7 @@ function renderBlogContentImages() {
   els.blogContentMediaCount.textContent = `${pendingBlogContentUploads.length} 张`;
 
   if (!pendingBlogContentUploads.length) {
-    blogContentEmptyText("上传正文图片后，点击保存记录才会写入 images/posts 并插入到文章正文。");
+    blogContentEmptyText("上传正文图片后，点击保存记录才会写入并插入到文章正文。");
     return;
   }
 
@@ -765,7 +765,7 @@ async function loadAlbumImages() {
   setExternalImageTools(false);
   els.albumUploadButton.classList.remove("hidden");
   setAlbumMediaVisible(true);
-  const data = await post<{ images: { name: string; path: string }[] }>("/api/albums/images", {
+  const data = await post<{ images: { name: string; path: string; isCover?: boolean }[] }>("/api/albums/images", {
     project: currentProject,
     album: albumName
   });
@@ -779,7 +779,7 @@ async function loadAlbumImages() {
   }
 
   for (const image of visibleImages) {
-    const card = renderImageCard(image.name, image.path, async () => {
+    const card = renderImageCard(image.isCover ? `封面: ${image.name}` : image.name, image.path, async () => {
       if (!(await showConfirm("删除相册图片？", `删除图片 ${image.name}？点击“保存记录”后才会真正生效。`, "删除"))) return;
       pendingAlbumDeletes.add(image.name);
       markRecordDirty();

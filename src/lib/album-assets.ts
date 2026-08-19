@@ -7,6 +7,7 @@ export interface AlbumImage {
   path: string;
   size: number;
   updatedAt: number;
+  isCover: boolean;
 }
 
 const IMAGE_EXTENSIONS = new Set([".avif", ".gif", ".jpeg", ".jpg", ".png", ".svg", ".webp"]);
@@ -43,10 +44,11 @@ export function listAlbumImages(project: ResolvedProject, album: string): AlbumI
         name: entry.name,
         path: path.relative(project.contentRoot, full).replaceAll(path.sep, "/"),
         size: stats.size,
-        updatedAt: stats.mtimeMs
+        updatedAt: stats.mtimeMs,
+        isCover: path.parse(entry.name).name.toLowerCase() === "cover"
       };
     })
-    .sort((a, b) => a.name.localeCompare(b.name));
+    .sort((a, b) => Number(b.isCover) - Number(a.isCover) || a.name.localeCompare(b.name));
 }
 
 export function deleteAlbumImage(project: ResolvedProject, album: string, imageName: string) {
