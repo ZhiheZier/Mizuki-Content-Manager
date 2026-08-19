@@ -1220,6 +1220,7 @@ async function saveRecordForm() {
   clearPendingMedia();
   await loadRecordCategory(activeCategory, String(values.__dirname || values.path || activeRecordId || ""));
   await refreshFiles();
+  await refreshOpenSourceFile();
 }
 
 async function deleteRecordForm() {
@@ -1387,6 +1388,17 @@ async function readFile(path: string) {
     await loadRecordCategory(category, preferredRecordIdForPath(category, activePath));
   }
   appendLog(`已打开 ${activePath}`);
+}
+
+async function refreshOpenSourceFile() {
+  if (!project || !activePath) return;
+  const data = await post<{ file: { content: string; path: string } }>("/api/files/read", { project, path: activePath });
+  activePath = data.file.path;
+  els.activeFile.textContent = activePath;
+  els.activeType.textContent = classifyPath(activePath);
+  els.editor.value = data.file.content;
+  sourceDirty = false;
+  markActiveFile(activePath);
 }
 
 async function saveFile() {
