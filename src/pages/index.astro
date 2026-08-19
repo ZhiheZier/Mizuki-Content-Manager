@@ -121,6 +121,7 @@
       </section>
 
       <section id="previewDrawer" class="preview-drawer" aria-hidden="true">
+        <div id="previewResizeHandle" class="preview-resize-handle" title="拖动调整预览宽度"></div>
         <div class="preview-toolbar">
           <div>
             <span class="eyebrow">预览</span>
@@ -1086,7 +1087,9 @@
     display: grid;
     grid-template-rows: auto minmax(0, 1fr);
     gap: 10px;
-    width: min(760px, calc(100vw - 380px));
+    width: min(var(--preview-drawer-width, 760px), calc(100vw - 32px));
+    min-width: min(420px, calc(100vw - 32px));
+    max-width: calc(100vw - 32px);
     height: calc(100dvh - 28px);
     padding: 14px;
     box-shadow: 0 20px 60px rgb(15 23 42 / 22%);
@@ -1094,8 +1097,43 @@
     transition: transform 180ms ease;
   }
 
+  .preview-drawer.resizing {
+    transition: none;
+    user-select: none;
+  }
+
   .preview-drawer.open {
     transform: translateX(0);
+  }
+
+  .preview-resize-handle {
+    position: absolute;
+    top: 10px;
+    bottom: 10px;
+    left: -7px;
+    width: 14px;
+    cursor: col-resize;
+  }
+
+  .preview-resize-handle::before {
+    position: absolute;
+    top: 16px;
+    bottom: 16px;
+    left: 6px;
+    width: 2px;
+    border-radius: 999px;
+    background: transparent;
+    content: "";
+    transition: background 140ms ease;
+  }
+
+  .preview-resize-handle:hover::before,
+  .preview-drawer.resizing .preview-resize-handle::before {
+    background: #93b4f8;
+  }
+
+  .preview-drawer.resizing #previewFrame {
+    pointer-events: none;
   }
 
   .image-lightbox {
@@ -1192,6 +1230,15 @@
   }
 
   @media (max-width: 760px) {
+    .preview-drawer {
+      width: calc(100vw - 28px);
+      min-width: 0;
+    }
+
+    .preview-resize-handle {
+      display: none;
+    }
+
     .record-form {
       grid-template-columns: 1fr;
     }

@@ -75,6 +75,7 @@ let pendingBlogContentUploads: PendingImageUpload[] = [];
 const pendingManagedDeletes = new Set<string>();
 const pendingAlbumDeletes = new Set<string>();
 const logLines: string[] = [];
+const PREVIEW_WIDTH_KEY = "mcm-preview-width";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -118,6 +119,7 @@ const els = {
   activeType: $<HTMLElement>("activeType"),
   editor: $<HTMLTextAreaElement>("editor"),
   previewDrawer: $<HTMLElement>("previewDrawer"),
+  previewResizeHandle: $<HTMLDivElement>("previewResizeHandle"),
   previewFrame: $<HTMLIFrameElement>("previewFrame"),
   previewLabel: $<HTMLElement>("previewLabel"),
   imageLightbox: $<HTMLDivElement>("imageLightbox"),
@@ -1393,6 +1395,48 @@ function setPreviewOpen(open: boolean) {
   els.previewDrawer.setAttribute("aria-hidden", String(!open));
 }
 
+function clampPreviewWidth(width: number) {
+  const max = Math.max(320, window.innerWidth - 32);
+  const min = Math.min(420, max);
+  return Math.round(Math.min(max, Math.max(min, width)));
+}
+
+function setPreviewWidth(width: number, persist = false) {
+  const next = clampPreviewWidth(width);
+  els.previewDrawer.style.setProperty("--preview-drawer-width", `${next}px`);
+  if (persist) localStorage.setItem(PREVIEW_WIDTH_KEY, String(next));
+}
+
+function restorePreviewWidth() {
+  const saved = Number(localStorage.getItem(PREVIEW_WIDTH_KEY));
+  if (Number.isFinite(saved) && saved > 0) setPreviewWidth(saved);
+}
+
+function startPreviewResize(event: PointerEvent) {
+  if (window.innerWidth <= 760) return;
+  event.preventDefault();
+  els.previewResizeHandle.setPointerCapture(event.pointerId);
+  els.previewDrawer.classList.add("resizing");
+
+  const move = (moveEvent: PointerEvent) => {
+    const rightGap = 14;
+    setPreviewWidth(window.innerWidth - moveEvent.clientX - rightGap);
+  };
+
+  const stop = (upEvent: PointerEvent) => {
+    els.previewResizeHandle.releasePointerCapture(upEvent.pointerId);
+    els.previewDrawer.classList.remove("resizing");
+    setPreviewWidth(els.previewDrawer.getBoundingClientRect().width, true);
+    window.removeEventListener("pointermove", move);
+    window.removeEventListener("pointerup", stop);
+    window.removeEventListener("pointercancel", stop);
+  };
+
+  window.addEventListener("pointermove", move);
+  window.addEventListener("pointerup", stop);
+  window.addEventListener("pointercancel", stop);
+}
+
 function handleError(error: unknown) {
   const message = error instanceof Error ? error.message : String(error);
   appendLog(`错误: ${message}`);
@@ -1445,6 +1489,7 @@ els.stopPreview.addEventListener("click", () => stopPreview().catch(handleError)
 els.reloadPreview.addEventListener("click", reloadPreview);
 els.previewToggle.addEventListener("click", () => startPreview().catch(handleError));
 els.closePreview.addEventListener("click", () => setPreviewOpen(false));
+els.previewResizeHandle.addEventListener("pointerdown", startPreviewResize);
 els.imageLightboxClose.addEventListener("click", closeImageLightbox);
 els.imageLightbox.addEventListener("click", (event) => {
   if (event.target === els.imageLightbox) closeImageLightbox();
@@ -1461,4 +1506,5 @@ categoryButtons.forEach((button) => {
   button.addEventListener("click", () => openCategory(button.dataset.category as CategoryKey).catch(handleError));
 });
 
+restorePreviewWidth();
 restoreConfig().catch(handleError);
