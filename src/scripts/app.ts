@@ -307,6 +307,23 @@ function categoryForPath(path: string): CategoryKey | null {
   return null;
 }
 
+function albumIdFromInfoPath(filePath: string) {
+  const match = filePath.match(/^images\/albums\/([^/]+)\/info\.json$/i);
+  return match?.[1] || "";
+}
+
+function sourcePathForRecord(category: CategoryKey, recordId: string) {
+  if (category === "albums" && recordId) return `images/albums/${recordId}/info.json`;
+  if (category === "blog" && recordId) return recordId;
+  return "";
+}
+
+function preferredRecordIdForPath(category: CategoryKey, filePath: string) {
+  if (category === "albums") return albumIdFromInfoPath(filePath);
+  if (category === "blog") return filePath;
+  return "";
+}
+
 function classifyPath(path: string) {
   const root = path.split("/")[0] || "";
   const labels: Record<string, string> = {
@@ -344,6 +361,11 @@ async function selectRecord(choice: RecordChoice, choices: RecordChoice[]) {
   setRecordPickerOpen(false);
   renderRecordPicker(choices);
   if (activeRecordConfig?.mode === "markdown-list" && activeRecordId) await readFile(activeRecordId);
+  else if (activeRecordConfig?.mode === "album-list" && activeRecordId) {
+    const sourcePath = sourcePathForRecord("albums", activeRecordId);
+    if (findFile(fileNodes, (candidate) => candidate === sourcePath)) await readFile(sourcePath);
+    else await loadSelectedRecord();
+  }
   else await loadSelectedRecord();
 }
 
@@ -1243,6 +1265,8 @@ async function openCategory(category: CategoryKey) {
   if (category === "albums") {
     appendLog("已切换到相册目录编辑。");
     setActiveCategory(category);
+    const sourcePath = sourcePathForRecord("albums", activeRecordId);
+    if (sourcePath && findFile(fileNodes, (candidate) => candidate === sourcePath)) await readFile(sourcePath);
     return;
   }
   const exactMatch = exactPaths[category].find((path) => findFile(fileNodes, (candidate) => candidate === path));
@@ -1325,7 +1349,7 @@ async function readFile(path: string) {
   const category = categoryForPath(activePath);
   if (category) {
     setActiveCategory(category);
-    await loadRecordCategory(category, activePath);
+    await loadRecordCategory(category, preferredRecordIdForPath(category, activePath));
   }
   appendLog(`已打开 ${activePath}`);
 }
@@ -1338,7 +1362,7 @@ async function saveFile() {
   await post("/api/files/save", { project, path: activePath, content: els.editor.value });
   appendLog(`已保存 ${activePath}`);
   sourceDirty = false;
-  await loadRecordCategory(activeCategory);
+  await loadRecordCategory(activeCategory, preferredRecordIdForPath(activeCategory, activePath) || activeRecordId);
 }
 
 async function startPreview() {
