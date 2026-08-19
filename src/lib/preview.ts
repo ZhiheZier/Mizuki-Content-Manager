@@ -32,10 +32,12 @@ function appendOutput(chunk: unknown) {
 }
 
 function spawnPreview(command: string, cwd: string) {
+  const env = { ...process.env, ASTRO_DEV_TOOLBAR: "false" };
   if (process.platform !== "win32") {
     const [cmd, ...args] = commandParts(command);
     return spawn(cmd, args, {
       cwd,
+      env,
       stdio: ["ignore", "pipe", "pipe"],
       windowsHide: true
     });
@@ -43,6 +45,7 @@ function spawnPreview(command: string, cwd: string) {
 
   return spawn("cmd.exe", ["/d", "/s", "/c", command], {
     cwd,
+    env,
     stdio: ["ignore", "pipe", "pipe"],
     windowsHide: true
   });

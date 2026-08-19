@@ -83,7 +83,7 @@ export function writeDiaryImage(project: ResolvedProject, fileName: string, data
   return writeImageToFolder(project, "diary", fileName, data);
 }
 
-export function writeImageToFolder(project: ResolvedProject, folder: "diary" | "device" | "anime" | "posts", fileName: string, data: Buffer) {
+export function writeImageToFolder(project: ResolvedProject, folder: "diary" | "device" | "anime" | "posts" | "projects", fileName: string, data: Buffer) {
   const safeName = path.basename(fileName).replace(/[<>:"/\\|?*\u0000-\u001f]/g, "-").trim();
   if (!safeName || !isImageFile(safeName)) throw new Error("Only image files can be uploaded.");
 

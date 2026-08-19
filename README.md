@@ -123,6 +123,7 @@ CONTENT_DIR=./content
 
 - 博客封面：`images/posts`
 - 博客正文图片：`images/posts`
+- 项目封面：`images/projects`
 - 日记图片：`images/diary`
 - 设备图片：`images/device`
 - 追番封面：`images/anime`

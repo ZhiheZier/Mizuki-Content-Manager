@@ -5,8 +5,8 @@ import { resolveProject } from "../../../lib/source";
 
 export const prerender = false;
 
-function mediaFolder(value: unknown): "device" | "anime" | "posts" {
-  if (value === "device" || value === "anime" || value === "posts") return value;
+function mediaFolder(value: unknown): "device" | "anime" | "posts" | "projects" {
+  if (value === "device" || value === "anime" || value === "posts" || value === "projects") return value;
   throw new Error("Unsupported image folder.");
 }
 
