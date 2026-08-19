@@ -1,0 +1,1183 @@
+---
+---
+
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Mizuki Content Manager</title>
+  </head>
+  <body>
+    <main class="app-shell">
+      <aside class="sidebar">
+        <section class="brand">
+          <h1>Mizuki CM</h1>
+          <p>内容编辑与预览</p>
+        </section>
+
+        <section class="panel">
+          <h2>项目配置</h2>
+          <label>
+            Mizuki 代码仓库
+            <span class="path-row">
+              <input id="codeRoot" placeholder="D:/Projects/your-mizuki-blog" />
+              <button id="applyProject" class="primary" type="button">确定</button>
+            </span>
+          </label>
+          <div class="button-row">
+            <button id="startPreview">启动预览</button>
+            <button id="stopPreview" class="danger">停止</button>
+          </div>
+          <pre id="projectStatus">尚未应用项目配置。</pre>
+        </section>
+
+        <section class="panel file-panel">
+          <div class="panel-head">
+            <h2>文件</h2>
+            <button id="refreshFiles">刷新</button>
+          </div>
+          <div id="fileTree" class="file-tree"></div>
+        </section>
+      </aside>
+
+      <section class="editor-pane">
+        <div class="editor-toolbar">
+          <div>
+            <span class="eyebrow">当前文件</span>
+            <strong id="activeFile">未选择</strong>
+            <span id="activeType" class="type-badge">未分类</span>
+          </div>
+          <div class="button-row">
+            <button id="previewToggle" type="button">预览</button>
+            <button id="saveFile" class="primary">保存</button>
+          </div>
+        </div>
+        <div class="category-tabs" aria-label="内容分类">
+          <button type="button" data-category="about">关于</button>
+          <button type="button" data-category="diary">日记</button>
+          <button type="button" data-category="friends">友情链接</button>
+          <button type="button" data-category="blog">博客</button>
+          <button type="button" data-category="projects">项目</button>
+          <button type="button" data-category="timeline">时间线</button>
+          <button type="button" data-category="skills">技能</button>
+          <button type="button" data-category="devices">设备</button>
+          <button type="button" data-category="aiTools">AI 工具</button>
+          <button type="button" data-category="anime">追番</button>
+          <button type="button" data-category="albums">相册</button>
+        </div>
+        <div id="recordEditor" class="record-editor">
+          <div class="section-title">结构化编辑</div>
+          <div class="record-head">
+            <label>
+              选择记录
+              <select id="recordSelect"></select>
+              <div id="recordPicker" class="record-picker">
+                <button id="recordPickerButton" class="record-picker-button" type="button">选择记录</button>
+                <div id="recordPickerMenu" class="record-picker-menu"></div>
+              </div>
+            </label>
+            <button id="newRecord" type="button">添加记录</button>
+          </div>
+          <div id="recordForm" class="record-form"></div>
+          <div id="albumMedia" class="album-media hidden">
+            <div class="album-media-head">
+              <div id="mediaTitle" class="section-title">相册图片</div>
+              <div class="album-media-tools">
+                <span id="albumMediaCount" class="media-count">0 张</span>
+                <span id="externalImageTools" class="external-image-tools hidden">
+                  <input id="externalImageUrl" type="url" placeholder="粘贴图片外链" />
+                  <button id="addExternalImage" type="button">添加外链</button>
+                </span>
+                <button id="albumUploadButton" type="button">上传图片</button>
+                <input id="albumUpload" type="file" accept="image/*" multiple />
+              </div>
+            </div>
+            <div id="albumImages" class="album-images"></div>
+          </div>
+          <div class="record-actions">
+            <button id="saveRecord" class="primary" type="button">保存记录</button>
+          </div>
+        </div>
+        <div class="source-editor">
+          <div class="section-title">直接编辑文件</div>
+          <textarea id="editor" spellcheck="false" placeholder="从左侧选择 md 或 ts 文件进行手动编辑"></textarea>
+        </div>
+      </section>
+
+      <section id="previewDrawer" class="preview-drawer" aria-hidden="true">
+        <div class="preview-toolbar">
+          <div>
+            <span class="eyebrow">预览</span>
+            <strong id="previewLabel">http://localhost:4321</strong>
+          </div>
+          <div class="button-row">
+            <button id="reloadPreview">刷新预览</button>
+            <button id="closePreview" type="button">关闭</button>
+          </div>
+        </div>
+        <iframe id="previewFrame" src="http://localhost:4321"></iframe>
+      </section>
+
+      <div id="imageLightbox" class="image-lightbox hidden" aria-hidden="true">
+        <button id="imageLightboxClose" class="image-lightbox-close" type="button" aria-label="关闭">×</button>
+        <img id="imageLightboxImg" alt="" />
+      </div>
+
+      <div id="confirmDialog" class="confirm-dialog hidden" aria-hidden="true">
+        <div class="confirm-card" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
+          <h2 id="confirmTitle">确认操作</h2>
+          <p id="confirmMessage"></p>
+          <div class="confirm-actions">
+            <button id="confirmCancel" type="button">取消</button>
+            <button id="confirmOk" class="primary" type="button">确定</button>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <script src="../scripts/app.ts"></script>
+  </body>
+</html>
+
+<style>
+  :root {
+    --bg: #f4f6f8;
+    --panel: #fff;
+    --line: #dce3ea;
+    --text: #17202a;
+    --muted: #647084;
+    --accent: #2563eb;
+    --danger: #dc2626;
+    --field-height: 36px;
+    --record-picker-height: 38px;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+
+  .app-shell {
+    display: grid;
+    grid-template-columns: 340px minmax(520px, 1fr);
+    height: 100dvh;
+    min-height: 720px;
+    gap: 14px;
+    padding: 14px;
+    overflow: hidden;
+  }
+
+  .sidebar,
+  .editor-pane {
+    min-width: 0;
+    height: calc(100dvh - 28px);
+    min-height: 692px;
+  }
+
+  .sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 0;
+    border-right: 1px solid var(--line);
+    overflow: hidden;
+  }
+
+  .brand {
+    background: #101827;
+    color: #fff;
+    border-radius: 8px;
+    padding: 18px;
+  }
+
+  .brand h1 {
+    margin: 0;
+    font-size: 24px;
+  }
+
+  .brand p {
+    margin: 6px 0 0;
+    color: #cbd5e1;
+    font-size: 13px;
+  }
+
+  .panel,
+  .editor-pane,
+  .preview-drawer {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+  }
+
+  .panel {
+    padding: 12px;
+  }
+
+  .panel h2 {
+    margin: 0 0 10px;
+    font-size: 15px;
+  }
+
+  label {
+    display: grid;
+    gap: 5px;
+    margin-bottom: 10px;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 650;
+  }
+
+  .path-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .path-row button {
+    min-width: 72px;
+    white-space: nowrap;
+  }
+
+  details {
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 8px 10px;
+    margin-bottom: 10px;
+    background: #fbfcfe;
+  }
+
+  summary {
+    cursor: pointer;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  details label:first-of-type {
+    margin-top: 10px;
+  }
+
+  input,
+  select,
+  textarea,
+  button {
+    font: inherit;
+  }
+
+  input,
+  select,
+  textarea {
+    width: 100%;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 8px 10px;
+    background: #fff;
+    color: var(--text);
+  }
+
+  select {
+    min-height: 40px;
+    appearance: none;
+    cursor: pointer;
+    background-image:
+      linear-gradient(45deg, transparent 50%, #64748b 50%),
+      linear-gradient(135deg, #64748b 50%, transparent 50%);
+    background-position:
+      calc(100% - 18px) 50%,
+      calc(100% - 12px) 50%;
+    background-size:
+      6px 6px,
+      6px 6px;
+    background-repeat: no-repeat;
+    padding-right: 38px;
+  }
+
+  select:hover {
+    border-color: #b7c6d8;
+    background-color: #fbfdff;
+  }
+
+  input:disabled {
+    background: #eef2f6;
+    color: #7b8794;
+    cursor: not-allowed;
+  }
+
+  button {
+    border: 1px solid var(--line);
+    background: #fff;
+    border-radius: 6px;
+    padding: 8px 10px;
+    cursor: pointer;
+    font-weight: 650;
+  }
+
+  button.primary {
+    border-color: var(--accent);
+    background: var(--accent);
+    color: #fff;
+  }
+
+  button.danger {
+    color: var(--danger);
+  }
+
+  .button-row,
+  .panel-head,
+  .editor-toolbar,
+  .preview-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .panel-head h2 {
+    margin: 0;
+    line-height: 32px;
+  }
+
+  .panel-head button {
+    min-height: 32px;
+    padding: 5px 10px;
+    line-height: 20px;
+  }
+
+  .button-row {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+
+  pre {
+    white-space: pre-wrap;
+    overflow: auto;
+    margin: 10px 0 0;
+    padding: 10px;
+    border-radius: 6px;
+    background: #f8fafc;
+    color: #334155;
+    font-size: 12px;
+  }
+
+  #projectStatus {
+    max-height: 180px;
+  }
+
+  .file-panel {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    flex: 1;
+    min-height: 260px;
+    overflow: hidden;
+  }
+
+  .file-tree {
+    margin-top: 8px;
+    min-height: 0;
+    overflow: auto;
+    padding: 4px;
+    border: 1px solid #e6edf5;
+    border-radius: 6px;
+    background: #fbfcfe;
+    font-size: 13px;
+  }
+
+  :global(.tree-row) {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    min-height: 28px;
+    padding-right: 8px;
+    border-radius: 5px;
+    overflow: hidden;
+    text-align: left;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  :global(.tree-row.file) {
+    border: 0;
+    background: transparent;
+    color: #243244;
+    font-weight: 500;
+  }
+
+  :global(.tree-row.file:hover) {
+    background: #eef4ff;
+  }
+
+  :global(.tree-row.file:disabled) {
+    color: #8a95a4;
+    cursor: default;
+  }
+
+  :global(.tree-row.file:disabled:hover) {
+    background: transparent;
+  }
+
+  :global(.tree-row.file.active) {
+    background: #dbeafe;
+    color: #1d4ed8;
+    font-weight: 700;
+  }
+
+  :global(.tree-row.dir) {
+    border: 0;
+    margin: 6px 0 2px;
+    background: transparent;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  :global(.tree-row.dir:hover) {
+    background: #f1f5f9;
+  }
+
+  :global(.tree-row .tree-icon) {
+    flex: 0 0 14px;
+    width: 14px;
+    color: #94a3b8;
+    text-align: center;
+  }
+
+  :global(.tree-row .tree-label) {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  :global(.tree-children) {
+    min-width: 0;
+  }
+
+  :global(.tree-children.collapsed) {
+    display: none;
+  }
+
+  .editor-pane {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px;
+    margin: 0;
+    overflow: hidden;
+  }
+
+  .eyebrow {
+    display: block;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+
+  .type-badge {
+    display: inline-flex;
+    align-items: center;
+    min-height: 22px;
+    margin-top: 6px;
+    padding: 2px 8px;
+    border: 1px solid #d8e0e8;
+    border-radius: 999px;
+    color: #475569;
+    background: #f8fafc;
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .category-tabs {
+    display: inline-flex;
+    align-items: center;
+    width: fit-content;
+    max-width: 100%;
+    padding: 3px;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    background: #f8fafc;
+    overflow: auto;
+  }
+
+  .category-tabs button {
+    min-height: 30px;
+    border: 0;
+    border-radius: 5px;
+    padding: 5px 12px;
+    background: transparent;
+    color: #475569;
+    white-space: nowrap;
+  }
+
+  .category-tabs button.active {
+    background: #fff;
+    color: #1d4ed8;
+    box-shadow: 0 1px 4px rgb(15 23 42 / 10%);
+  }
+
+  .record-editor {
+    display: grid;
+    gap: 14px;
+    width: 100%;
+    max-width: 100%;
+    min-height: 0;
+    max-height: 48vh;
+    padding: 14px;
+    border: 1px solid #e6edf5;
+    border-radius: 8px;
+    background: #fbfcfe;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
+  .record-editor.hidden {
+    display: none;
+  }
+
+  .record-head,
+  .record-actions {
+    display: flex;
+    align-items: end;
+    gap: 12px;
+    min-width: 0;
+    padding-top: 2px;
+  }
+
+  .record-head label {
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+  }
+
+  #recordSelect {
+    display: none;
+  }
+
+  .record-picker {
+    position: relative;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .record-picker-button {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    min-height: var(--record-picker-height);
+    padding: 8px 38px 8px 12px;
+    border: 1px solid #ccd8e5;
+    border-radius: 7px;
+    background: linear-gradient(180deg, #fff 0%, #f9fbfe 100%);
+    color: #17202a;
+    font-weight: 650;
+    text-align: left;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .record-head > button {
+    min-height: var(--record-picker-height);
+    padding-top: 8px;
+    padding-bottom: 8px;
+  }
+
+  .record-picker-button::after {
+    position: absolute;
+    right: 14px;
+    width: 8px;
+    height: 8px;
+    border-right: 2px solid #64748b;
+    border-bottom: 2px solid #64748b;
+    content: "";
+    transform: rotate(45deg) translateY(-2px);
+  }
+
+  .record-picker.open .record-picker-button {
+    border-color: #93b4f8;
+    outline: 3px solid rgb(37 99 235 / 14%);
+  }
+
+  .record-picker-button:hover {
+    border-color: #b7c6d8;
+    background: #fff;
+  }
+
+  .record-picker-menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    right: 0;
+    z-index: 30;
+    display: none;
+    max-height: 280px;
+    overflow: auto;
+    padding: 6px;
+    border: 1px solid #ccd8e5;
+    border-radius: 8px;
+    background: #fff;
+    box-shadow: 0 16px 36px rgb(15 23 42 / 14%);
+  }
+
+  .record-picker.open .record-picker-menu {
+    display: grid;
+    gap: 3px;
+  }
+
+  :global(.record-picker-option) {
+    width: 100%;
+    border: 0;
+    border-radius: 6px;
+    padding: 8px 10px;
+    background: transparent;
+    color: #243244;
+    text-align: left;
+    font-weight: 600;
+  }
+
+  :global(.record-picker-option:hover),
+  :global(.record-picker-option.active) {
+    background: #eef4ff;
+    color: #1d4ed8;
+  }
+
+  .record-head.hidden {
+    display: none;
+  }
+
+  .record-form {
+    display: grid;
+    width: 100%;
+    min-width: 0;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr));
+    gap: 18px 22px;
+    align-items: start;
+  }
+
+  :global(.record-form label) {
+    position: relative;
+    display: grid;
+    gap: 8px;
+    box-sizing: border-box;
+    min-width: 0;
+    max-width: 100%;
+    overflow: visible;
+    margin: 0;
+    padding: 10px;
+    border: 1px solid #e6edf5;
+    border-radius: 7px;
+    background: #fff;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 650;
+  }
+
+  :global(.record-form label.field-open) {
+    z-index: 80;
+  }
+
+  :global(.record-form label.wide) {
+    grid-column: 1 / -1;
+  }
+
+  :global(.record-form input),
+  :global(.record-form select),
+  :global(.record-form textarea) {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    min-height: var(--field-height);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 7px 10px;
+    background: #fff;
+    color: var(--text);
+    font: inherit;
+  }
+
+  :global(.record-form input:focus),
+  :global(.record-form select:focus),
+  :global(.record-form textarea:focus),
+  #recordSelect:focus {
+    border-color: #93b4f8;
+    outline: 3px solid rgb(37 99 235 / 14%);
+  }
+
+  :global(.record-form select),
+  #recordSelect {
+    min-height: var(--field-height);
+    appearance: none;
+    background-image:
+      linear-gradient(45deg, transparent 50%, #64748b 50%),
+      linear-gradient(135deg, #64748b 50%, transparent 50%);
+    background-position:
+      calc(100% - 18px) 50%,
+      calc(100% - 12px) 50%;
+    background-size:
+      6px 6px,
+      6px 6px;
+    background-repeat: no-repeat;
+    padding-right: 38px;
+    cursor: pointer;
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 80%);
+  }
+
+  :global(.record-form select:hover) {
+    border-color: #b7c6d8;
+    background-color: #fbfdff;
+  }
+
+  :global(.record-form select option) {
+    color: #17202a;
+    background: #fff;
+  }
+
+  :global(.record-form .field-select-native) {
+    display: none;
+  }
+
+  :global(.field-picker) {
+    position: relative;
+    width: 100%;
+    min-width: 0;
+    height: var(--field-height);
+  }
+
+  :global(.field-picker-button) {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    height: var(--field-height);
+    min-height: var(--field-height);
+    overflow: hidden;
+    padding: 7px 36px 7px 10px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: #fff;
+    color: var(--text);
+    font-weight: 650;
+    text-align: left;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  :global(.field-picker-button::after) {
+    position: absolute;
+    right: 14px;
+    width: 8px;
+    height: 8px;
+    border-right: 2px solid #64748b;
+    border-bottom: 2px solid #64748b;
+    content: "";
+    transform: rotate(45deg) translateY(-2px);
+  }
+
+  :global(.field-picker-button:hover) {
+    border-color: #b7c6d8;
+    background: #fff;
+  }
+
+  :global(.field-picker.open .field-picker-button) {
+    border-color: #93b4f8;
+    outline: 2px solid rgb(37 99 235 / 14%);
+  }
+
+  :global(.field-picker-menu) {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    right: 0;
+    z-index: 120;
+    display: none;
+    max-height: 220px;
+    overflow: auto;
+    padding: 6px;
+    border: 1px solid #ccd8e5;
+    border-radius: 8px;
+    background: #fff;
+    box-shadow: 0 16px 36px rgb(15 23 42 / 14%);
+  }
+
+  :global(.field-picker.open .field-picker-menu) {
+    display: grid;
+    gap: 3px;
+  }
+
+  :global(.field-picker-option) {
+    width: 100%;
+    min-height: 34px;
+    border: 0;
+    border-radius: 6px;
+    padding: 8px 10px;
+    background: transparent;
+    color: #243244;
+    text-align: left;
+    font-weight: 600;
+  }
+
+  :global(.field-picker-option:hover),
+  :global(.field-picker-option.active) {
+    background: #eef4ff;
+    color: #1d4ed8;
+  }
+
+  .album-media {
+    display: grid;
+    gap: 10px;
+    width: 100%;
+    min-width: 0;
+    padding: 12px;
+    border: 1px solid #e6edf5;
+    border-radius: 8px;
+    background: #fff;
+  }
+
+  .album-media.hidden {
+    display: none;
+  }
+
+  .hidden {
+    display: none !important;
+  }
+
+  .album-media-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .album-media-tools {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  #albumUpload {
+    display: none;
+  }
+
+  #albumUploadButton {
+    min-height: 30px;
+    padding: 5px 9px;
+    font-size: 12px;
+  }
+
+  .external-image-tools {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: min(360px, 42vw);
+  }
+
+  .external-image-tools.hidden {
+    display: none;
+  }
+
+  #externalImageUrl {
+    min-width: 180px;
+    height: 30px;
+    padding: 5px 9px;
+    font-size: 12px;
+  }
+
+  #addExternalImage {
+    min-height: 30px;
+    padding: 5px 9px;
+    white-space: nowrap;
+    font-size: 12px;
+  }
+
+  .media-count {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .album-images {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+    gap: 10px;
+  }
+
+  :global(.album-image-card) {
+    position: relative;
+    display: grid;
+    min-width: 0;
+    overflow: hidden;
+    padding: 0;
+    border: 1px solid #dfe7f0;
+    border-radius: 7px;
+    background: #fbfcfe;
+  }
+
+  :global(.album-image-preview) {
+    display: block;
+    width: 100%;
+    border: 0;
+    overflow: hidden;
+    padding: 0;
+    background: #f1f5f9;
+  }
+
+  :global(.album-image-preview img) {
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    object-fit: cover;
+    display: block;
+    border: 0;
+    background: #f1f5f9;
+    transition: transform 160ms ease;
+  }
+
+  :global(.album-image-preview:hover img) {
+    transform: scale(1.08);
+  }
+
+  :global(.album-image-delete) {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    z-index: 2;
+    display: grid;
+    place-items: center;
+    width: 24px;
+    height: 24px;
+    border: 1px solid rgb(255 255 255 / 70%);
+    border-radius: 999px;
+    padding: 0;
+    background: rgb(15 23 42 / 72%);
+    color: #fff;
+    font-size: 16px;
+    line-height: 1;
+    opacity: 0;
+    transition: opacity 120ms ease, background 120ms ease;
+  }
+
+  :global(.album-image-card:hover .album-image-delete) {
+    opacity: 1;
+  }
+
+  :global(.album-image-delete:hover) {
+    background: rgb(220 38 38 / 88%);
+  }
+
+  :global(.album-image-name) {
+    padding: 7px 8px;
+    overflow: hidden;
+    color: #334155;
+    font-size: 12px;
+    font-weight: 650;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  :global(.album-empty) {
+    padding: 18px;
+    border: 1px dashed #cbd5e1;
+    border-radius: 7px;
+    color: var(--muted);
+    font-size: 13px;
+  }
+
+  :global(.record-form label.hidden-field) {
+    display: none;
+  }
+
+  :global(.record-form input[type="checkbox"]) {
+    width: auto;
+    justify-self: start;
+  }
+
+  :global(.record-form textarea) {
+    min-height: 112px;
+    resize: vertical;
+  }
+
+  .section-title {
+    color: #334155;
+    font-size: 13px;
+    font-weight: 750;
+  }
+
+  .source-editor {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: 8px;
+    flex: 1;
+    width: 100%;
+    max-width: 100%;
+    min-height: 0;
+    padding: 14px;
+    border: 1px solid #e6edf5;
+    border-radius: 8px;
+    background: #fbfcfe;
+  }
+
+  .record-editor.hidden + .source-editor {
+    min-height: 0;
+  }
+
+  #editor {
+    resize: none;
+    height: 100%;
+    min-height: 0;
+    font-family: "Cascadia Code", "JetBrains Mono", Consolas, monospace;
+    font-size: 13px;
+    line-height: 1.55;
+  }
+
+  #previewFrame {
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: #fff;
+  }
+
+  .preview-drawer {
+    position: fixed;
+    top: 14px;
+    right: 14px;
+    z-index: 20;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: 10px;
+    width: min(760px, calc(100vw - 380px));
+    height: calc(100dvh - 28px);
+    padding: 14px;
+    box-shadow: 0 20px 60px rgb(15 23 42 / 22%);
+    transform: translateX(calc(100% + 24px));
+    transition: transform 180ms ease;
+  }
+
+  .preview-drawer.open {
+    transform: translateX(0);
+  }
+
+  .image-lightbox {
+    position: fixed;
+    inset: 0;
+    z-index: 80;
+    display: grid;
+    place-items: center;
+    padding: 28px;
+    background: rgb(15 23 42 / 78%);
+  }
+
+  .image-lightbox.hidden {
+    display: none;
+  }
+
+  .image-lightbox img {
+    max-width: min(1100px, 94vw);
+    max-height: 88vh;
+    border-radius: 8px;
+    background: #fff;
+    box-shadow: 0 24px 80px rgb(0 0 0 / 36%);
+  }
+
+  .image-lightbox-close {
+    position: fixed;
+    top: 18px;
+    right: 18px;
+    width: 36px;
+    height: 36px;
+    border: 1px solid rgb(255 255 255 / 40%);
+    border-radius: 999px;
+    padding: 0;
+    background: rgb(15 23 42 / 70%);
+    color: #fff;
+    font-size: 24px;
+    line-height: 1;
+  }
+
+  .confirm-dialog {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: grid;
+    place-items: center;
+    padding: 18px;
+    background: rgb(15 23 42 / 44%);
+  }
+
+  .confirm-dialog.hidden {
+    display: none;
+  }
+
+  .confirm-card {
+    width: min(420px, 100%);
+    padding: 18px;
+    border: 1px solid #d9e3ee;
+    border-radius: 8px;
+    background: #fff;
+    box-shadow: 0 24px 70px rgb(15 23 42 / 24%);
+  }
+
+  .confirm-card h2 {
+    margin: 0 0 8px;
+    color: #17202a;
+    font-size: 17px;
+  }
+
+  .confirm-card p {
+    margin: 0;
+    color: #475569;
+    font-size: 14px;
+    line-height: 1.7;
+  }
+
+  .confirm-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 18px;
+  }
+
+  @media (max-width: 1180px) {
+    .app-shell {
+      grid-template-columns: 320px 1fr;
+      height: auto;
+      overflow: auto;
+    }
+
+    .preview-drawer {
+      left: 14px;
+      width: calc(100vw - 28px);
+    }
+  }
+
+  @media (max-width: 760px) {
+    .record-form {
+      grid-template-columns: 1fr;
+    }
+
+    .record-head,
+    .record-actions {
+      align-items: stretch;
+      flex-direction: column;
+    }
+
+    .record-head button,
+    .record-actions button {
+      width: 100%;
+    }
+  }
+</style>
