@@ -81,7 +81,6 @@
               </div>
             </label>
             <button id="newRecord" type="button">添加记录</button>
-            <button id="deleteRecord" class="danger" type="button">删除记录</button>
           </div>
           <div id="recordForm" class="record-form"></div>
           <div id="albumMedia" class="album-media hidden">
@@ -100,6 +99,7 @@
             <div id="albumImages" class="album-images"></div>
           </div>
           <div class="record-actions">
+            <button id="deleteRecord" class="danger" type="button">删除记录</button>
             <button id="saveRecord" class="primary" type="button">保存记录</button>
           </div>
         </div>
@@ -561,6 +561,10 @@
     gap: 12px;
     min-width: 0;
     padding-top: 2px;
+  }
+
+  .record-actions {
+    justify-content: flex-end;
   }
 
   .record-head label {
