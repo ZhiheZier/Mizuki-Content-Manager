@@ -65,7 +65,7 @@ async function isPreviewReady(url: string) {
 }
 
 async function currentReadyUrl(fallbackUrl: string) {
-  const detectedUrl = lastPreviewUrl || detectPreviewUrl(lastOutput);
+  const detectedUrl = detectPreviewUrl(lastOutput) || lastPreviewUrl;
   if (detectedUrl && await isPreviewReady(detectedUrl)) {
     lastPreviewUrl = detectedUrl;
     return detectedUrl;
@@ -118,7 +118,7 @@ export async function startPreview(project: ResolvedProject, command = DEFAULT_D
   }
 
   lastOutput = "";
-  lastPreviewUrl = project.previewUrl;
+  lastPreviewUrl = "";
 
   const child = spawnPreview(command, project.codeRoot);
   processRef = child;
@@ -147,7 +147,7 @@ export async function startPreview(project: ResolvedProject, command = DEFAULT_D
         return;
       }
 
-      const previewUrl = lastPreviewUrl || project.previewUrl;
+      const previewUrl = detectPreviewUrl(lastOutput) || lastPreviewUrl || project.previewUrl;
       finish({
         ...previewStatus(),
         ready: false,
@@ -167,8 +167,9 @@ export async function startPreview(project: ResolvedProject, command = DEFAULT_D
       });
     });
 
-    child.once("exit", (code) => {
-      const detectedUrl = lastPreviewUrl || detectPreviewUrl(lastOutput);
+    child.once("exit", async (code) => {
+      await sleep(100);
+      const detectedUrl = detectPreviewUrl(lastOutput) || lastPreviewUrl;
       processRef = null;
       meta = null;
       if (detectedUrl) {
