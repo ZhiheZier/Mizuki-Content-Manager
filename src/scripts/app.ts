@@ -68,6 +68,8 @@ let activeRecordConfig: RecordConfig | null = null;
 let recordDirty = false;
 let sourceDirty = false;
 let hydratingForm = false;
+let previewReady = false;
+let previewBaseUrl = "";
 let pendingSingleUpload: PendingImageUpload | null = null;
 let pendingDiaryUploads: PendingImageUpload[] = [];
 let pendingAlbumUploads: PendingImageUpload[] = [];
@@ -324,6 +326,34 @@ function preferredRecordIdForPath(category: CategoryKey, filePath: string) {
   if (category === "albums") return albumIdFromInfoPath(filePath);
   if (category === "blog") return filePath;
   return "";
+}
+
+function normalizePreviewBase(url: string) {
+  return (url || "").replace(/\/+$/, "");
+}
+
+function slugFromMarkdownPath(filePath: string) {
+  return filePath
+    .replace(/^posts\//, "")
+    .replace(/\.(md|mdx)$/i, "")
+    .replace(/\/index$/i, "");
+}
+
+function currentPreviewPath() {
+  if (activeCategory === "blog") {
+    const source = activeRecordId || activePath;
+    const slug = slugFromMarkdownPath(source);
+    return slug ? `/posts/${slug}/` : "/";
+  }
+  if (activeCategory === "about") return "/about/";
+  if (activeCategory === "friends") return "/friends/";
+  if (activeCategory === "albums") return "/gallery/";
+  return "/";
+}
+
+function currentPreviewUrl() {
+  const base = normalizePreviewBase(previewBaseUrl || els.previewLabel.textContent || resolvedProject?.previewUrl || "");
+  return `${base || "about:blank"}${base ? currentPreviewPath() : ""}`;
 }
 
 function classifyPath(path: string) {
@@ -1289,7 +1319,8 @@ async function applyProject() {
   resolvedProject = data.project;
   await post<{ config: AppConfig }>("/api/config", project);
   appendLog(`项目配置已应用。\n${data.summary}`);
-  els.previewLabel.textContent = data.project.previewUrl;
+  setPreviewReady(false, data.project.previewUrl);
+  els.previewFrame.src = "about:blank";
   els.applyProject.textContent = "修改";
   els.codeRoot.disabled = true;
   projectLocked = true;
@@ -1372,19 +1403,22 @@ async function startPreview() {
   const data = await post<{ message: string; running?: boolean; ready?: boolean; previewUrl?: string }>("/api/preview/start", { project });
   appendLog(data.message);
   if (data.running && data.ready) {
-    if (data.previewUrl) els.previewLabel.textContent = data.previewUrl;
-    reloadPreview();
-    setPreviewOpen(true);
+    setPreviewReady(true, data.previewUrl || resolvedProject?.previewUrl || "");
+    openCurrentPreviewRoute();
+  } else {
+    setPreviewReady(false, data.previewUrl || resolvedProject?.previewUrl || "");
   }
 }
 
 async function stopPreview() {
   const data = await post<{ message: string }>("/api/preview/stop", {});
   appendLog(data.message);
+  setPreviewReady(false, resolvedProject?.previewUrl || "");
+  setPreviewOpen(false);
 }
 
 function reloadPreview() {
-  const url = els.previewLabel.textContent || resolvedProject?.previewUrl || "about:blank";
+  const url = els.previewFrame.src && els.previewFrame.src !== "about:blank" ? els.previewFrame.src : currentPreviewUrl();
   if (url === "未启动") return;
   els.previewFrame.src = url;
   els.previewLabel.textContent = url;
@@ -1393,6 +1427,24 @@ function reloadPreview() {
 function setPreviewOpen(open: boolean) {
   els.previewDrawer.classList.toggle("open", open);
   els.previewDrawer.setAttribute("aria-hidden", String(!open));
+}
+
+function setPreviewReady(ready: boolean, url = "") {
+  previewReady = ready;
+  if (url) {
+    previewBaseUrl = normalizePreviewBase(url);
+    els.previewLabel.textContent = previewBaseUrl;
+  }
+  els.previewToggle.disabled = !previewReady;
+  els.previewToggle.title = previewReady ? "打开当前分类预览" : "请先启动预览";
+}
+
+function openCurrentPreviewRoute() {
+  if (!previewReady) return;
+  const url = currentPreviewUrl();
+  els.previewLabel.textContent = url;
+  els.previewFrame.src = url;
+  setPreviewOpen(true);
 }
 
 function clampPreviewWidth(width: number) {
@@ -1460,6 +1512,7 @@ els.codeRoot.addEventListener("input", () => {
   els.applyProject.textContent = "确定";
   projectLocked = false;
   resolvedProject = null;
+  setPreviewReady(false);
 });
 els.pushContent.addEventListener("click", () => pushContent().catch(handleError));
 els.refreshFiles.addEventListener("click", () => refreshFiles().catch(handleError));
@@ -1487,7 +1540,7 @@ els.deleteRecord.addEventListener("click", () => deleteRecordForm().catch(handle
 els.startPreview.addEventListener("click", () => startPreview().catch(handleError));
 els.stopPreview.addEventListener("click", () => stopPreview().catch(handleError));
 els.reloadPreview.addEventListener("click", reloadPreview);
-els.previewToggle.addEventListener("click", () => startPreview().catch(handleError));
+els.previewToggle.addEventListener("click", openCurrentPreviewRoute);
 els.closePreview.addEventListener("click", () => setPreviewOpen(false));
 els.previewResizeHandle.addEventListener("pointerdown", startPreviewResize);
 els.imageLightboxClose.addEventListener("click", closeImageLightbox);
@@ -1507,4 +1560,5 @@ categoryButtons.forEach((button) => {
 });
 
 restorePreviewWidth();
+setPreviewReady(false);
 restoreConfig().catch(handleError);

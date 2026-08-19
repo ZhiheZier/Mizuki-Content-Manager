@@ -52,7 +52,7 @@
             <span id="activeType" class="type-badge">未分类</span>
           </div>
           <div class="button-row">
-            <button id="previewToggle" type="button">预览</button>
+            <button id="previewToggle" type="button" disabled>预览</button>
             <button id="saveFile" class="primary">保存</button>
           </div>
         </div>
@@ -334,6 +334,12 @@
     padding: 8px 10px;
     cursor: pointer;
     font-weight: 650;
+  }
+
+  button:disabled {
+    background: #eef2f6;
+    color: #8a96a5;
+    cursor: not-allowed;
   }
 
   button.primary {
