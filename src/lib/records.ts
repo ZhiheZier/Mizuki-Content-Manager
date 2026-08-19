@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { deleteAlbumDirectory, deletePublicImageIfExists } from "./album-assets";
 import type { ResolvedProject } from "./source";
 
 export type RecordType = "about" | "diary" | "friends" | "blog" | "projects" | "timeline" | "skills" | "devices" | "aiTools" | "anime" | "albums";
@@ -419,6 +420,36 @@ function flattenDeviceMap(map: Record<string, Record<string, unknown>[]>) {
   );
 }
 
+function collectManagedImagePaths(value: unknown): string[] {
+  const paths: string[] = [];
+  const visit = (item: unknown) => {
+    if (!item) return;
+    if (typeof item === "string") {
+      const trimmed = item.trim();
+      if (/^\/?images\//.test(trimmed)) paths.push(trimmed);
+      return;
+    }
+    if (Array.isArray(item)) {
+      for (const entry of item) visit(entry);
+      return;
+    }
+    if (typeof item === "object") {
+      for (const entry of Object.values(item as Record<string, unknown>)) visit(entry);
+    }
+  };
+  visit(value);
+  return Array.from(new Set(paths));
+}
+
+function deleteManagedImages(project: ResolvedProject, record: Record<string, unknown> | null) {
+  if (!record) return [];
+  const deleted: string[] = [];
+  for (const imagePath of collectManagedImagePaths(record)) {
+    if (deletePublicImageIfExists(project, imagePath)) deleted.push(imagePath);
+  }
+  return deleted;
+}
+
 export function getRecordConfig(type: RecordType) {
   return RECORD_CONFIGS[type];
 }
@@ -560,4 +591,48 @@ export function saveRecord(project: ResolvedProject, type: RecordType, item: Rec
     if (fs.existsSync(oldFile)) fs.unlinkSync(oldFile);
   }
   return { ok: true };
+}
+
+export function deleteRecord(project: ResolvedProject, type: RecordType, id?: string) {
+  const config = getRecordConfig(type);
+  if (!id) throw new Error("缺少要删除的记录。");
+  if (config.mode === "markdown-single") throw new Error("单文件页面不支持删除记录。");
+
+  if (config.mode === "ts-array") {
+    const current = readTsValue<Record<string, unknown>[]>(project, config);
+    const index = current.value.findIndex((entry, idx) => String(entry.id ?? idx) === id);
+    if (index < 0) throw new Error("没有找到要删除的记录。");
+    const [removed] = current.value.splice(index, 1);
+    const images = deleteManagedImages(project, removed);
+    writeTsValue(project, config, current.value);
+    return { ok: true, deletedImages: images };
+  }
+
+  if (config.mode === "ts-category-map") {
+    const current = readTsValue<Record<string, Record<string, unknown>[]>>(project, config);
+    const [category, rawIndex] = String(id).split("::");
+    const index = Number(rawIndex);
+    if (!category || !Number.isFinite(index) || !current.value[category]?.[index]) throw new Error("没有找到要删除的记录。");
+    const [removed] = current.value[category].splice(index, 1);
+    if (!current.value[category].length) delete current.value[category];
+    const images = deleteManagedImages(project, removed);
+    writeTsValue(project, config, current.value);
+    return { ok: true, deletedImages: images };
+  }
+
+  if (config.mode === "album-list") {
+    const record = readRecord(project, type, id);
+    const images = deleteManagedImages(project, record || null);
+    deleteAlbumDirectory(project, id);
+    return { ok: true, deletedImages: images };
+  }
+
+  const target = normalizeContentRelativePath(id);
+  const file = contentPath(project, target);
+  assertInside(project.contentRoot, file);
+  if (!fs.existsSync(file)) throw new Error("没有找到要删除的文件。");
+  const parsed = parseFrontmatter(fs.readFileSync(file, "utf8"));
+  const images = deleteManagedImages(project, parsed.data);
+  fs.unlinkSync(file);
+  return { ok: true, deletedImages: images };
 }

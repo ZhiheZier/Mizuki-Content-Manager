@@ -113,6 +113,24 @@ export function deletePublicImage(project: ResolvedProject, imagePath: string) {
   fs.unlinkSync(full);
 }
 
+export function deletePublicImageIfExists(project: ResolvedProject, imagePath: string) {
+  const normalized = imagePath.replace(/^\/+/, "");
+  if (!normalized.startsWith("images/") || !isImageFile(normalized)) return false;
+  const full = path.join(project.imagesDir, normalized.slice("images/".length));
+  assertInside(project.imagesDir, full);
+  if (!fs.existsSync(full)) return false;
+  fs.unlinkSync(full);
+  return true;
+}
+
+export function deleteAlbumDirectory(project: ResolvedProject, album: string) {
+  const dir = albumDir(project, album);
+  assertInside(project.imagesDir, dir);
+  if (!fs.existsSync(dir)) return false;
+  fs.rmSync(dir, { recursive: true, force: true });
+  return true;
+}
+
 export function readAsset(project: ResolvedProject, relativePath: string) {
   const normalized = relativePath.replace(/^\/+/, "");
   let full = path.join(project.contentRoot, normalized);

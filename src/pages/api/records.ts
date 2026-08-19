@@ -1,5 +1,5 @@
 import type { APIRoute } from "astro";
-import { listRecords, readRecord, saveRecord, type RecordType } from "../../lib/records";
+import { deleteRecord, listRecords, readRecord, saveRecord, type RecordType } from "../../lib/records";
 import { resolveProject } from "../../lib/source";
 
 export const prerender = false;
@@ -33,6 +33,10 @@ export const POST: APIRoute = async ({ request }) => {
     if (input.action === "save") {
       saveRecord(project, type, input.item || {}, input.id);
       return Response.json({ ok: true, ...listRecords(project, type) });
+    }
+    if (input.action === "delete") {
+      const result = deleteRecord(project, type, input.id);
+      return Response.json({ ...result, ...listRecords(project, type) });
     }
     return Response.json({ ok: true, ...listRecords(project, type) });
   } catch (error) {

@@ -18,6 +18,7 @@ dist/
 Thumbs.db
 
 # Logs and package-manager debug output
+logs/
 *.log
 npm-debug.log*
 pnpm-debug.log*

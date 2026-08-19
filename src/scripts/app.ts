@@ -87,6 +87,7 @@ const els = {
   saveFile: $<HTMLButtonElement>("saveFile"),
   saveRecord: $<HTMLButtonElement>("saveRecord"),
   newRecord: $<HTMLButtonElement>("newRecord"),
+  deleteRecord: $<HTMLButtonElement>("deleteRecord"),
   recordEditor: $<HTMLDivElement>("recordEditor"),
   recordSelect: $<HTMLSelectElement>("recordSelect"),
   recordPicker: $<HTMLDivElement>("recordPicker"),
@@ -134,6 +135,12 @@ function appendLog(message: string) {
   logLines.push(`[${time}] ${message}`);
   if (logLines.length > 80) logLines.shift();
   els.projectStatus.textContent = logLines.length ? logLines.join("\n") : "暂无日志。";
+  els.projectStatus.scrollTop = els.projectStatus.scrollHeight;
+  fetch("/api/logs", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message })
+  }).catch(() => undefined);
 }
 
 function markRecordDirty() {
@@ -993,6 +1000,7 @@ async function loadRecordCategory(category: CategoryKey, preferredId = "") {
   renderRecordForm(data.config);
   els.recordEditor.classList.toggle("hidden", data.config.mode === "markdown-single" || data.config.fields.length === 0);
   document.querySelector<HTMLElement>(".record-head")?.classList.toggle("hidden", data.config.mode === "markdown-single");
+  els.deleteRecord.classList.toggle("hidden", data.config.mode === "markdown-single");
   els.recordSelect.innerHTML = "";
   for (const choice of data.choices) {
     const option = document.createElement("option");
@@ -1050,6 +1058,34 @@ async function saveRecordForm() {
   recordDirty = false;
   clearPendingMedia();
   await loadRecordCategory(activeCategory, String(values.__dirname || values.path || activeRecordId || ""));
+  await refreshFiles();
+}
+
+async function deleteRecordForm() {
+  if (!project || !activeRecordConfig || !activeRecordId) {
+    appendLog("请先选择要删除的记录。");
+    return;
+  }
+  if (recordDirty || sourceDirty) {
+    appendLog("当前页面还有未保存内容。请先保存或放弃修改后再删除记录。");
+    return;
+  }
+  const label = els.recordPickerButton.textContent || activeRecordId;
+  if (!(await showConfirm("删除记录？", `确定删除「${label}」吗？相关的本地图片也会一起删除。`, "删除"))) return;
+  const data = await post<{ deletedImages?: string[] }>("/api/records", {
+    project,
+    type: activeCategory,
+    action: "delete",
+    id: activeRecordId
+  });
+  const deletedImages = data.deletedImages?.length ? `\n已删除图片: ${data.deletedImages.join(", ")}` : "";
+  appendLog(`已删除${activeRecordConfig.label}: ${label}${deletedImages}`);
+  if (activePath === activeRecordId) clearSourceEditor();
+  activeRecordId = "";
+  recordDirty = false;
+  sourceDirty = false;
+  clearPendingMedia();
+  await loadRecordCategory(activeCategory);
   await refreshFiles();
 }
 
@@ -1265,6 +1301,7 @@ document.addEventListener("click", (event) => {
 });
 els.saveRecord.addEventListener("click", () => saveRecordForm().catch(handleError));
 els.newRecord.addEventListener("click", () => newRecordForm().catch(handleError));
+els.deleteRecord.addEventListener("click", () => deleteRecordForm().catch(handleError));
 els.startPreview.addEventListener("click", () => startPreview().catch(handleError));
 els.stopPreview.addEventListener("click", () => stopPreview().catch(handleError));
 els.reloadPreview.addEventListener("click", reloadPreview);
