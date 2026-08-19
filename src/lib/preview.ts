@@ -33,6 +33,31 @@ function spawnPreview(command: string, cwd: string) {
   });
 }
 
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function isPreviewReady(url: string) {
+  try {
+    const response = await fetch(url, {
+      signal: AbortSignal.timeout(1200)
+    });
+    return response.status < 500;
+  } catch {
+    return false;
+  }
+}
+
+async function waitForPreview(url: string, child: ChildProcess, timeoutMs = 25000) {
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < timeoutMs) {
+    if (child.exitCode !== null) return false;
+    if (await isPreviewReady(url)) return true;
+    await sleep(600);
+  }
+  return false;
+}
+
 export function previewStatus() {
   if (!processRef) return { running: false, message: "预览服务未启动。" };
   const code = processRef.exitCode;
@@ -47,7 +72,10 @@ export function previewStatus() {
 }
 
 export async function startPreview(project: ResolvedProject, command = DEFAULT_DEV_COMMAND) {
-  if (processRef && processRef.exitCode === null) return previewStatus();
+  if (processRef && processRef.exitCode === null) {
+    const ready = await isPreviewReady(project.previewUrl);
+    return { ...previewStatus(), ready };
+  }
   if (!looksLikeMizukiRepo(project.codeRoot)) {
     return {
       running: false,
@@ -63,16 +91,31 @@ export async function startPreview(project: ResolvedProject, command = DEFAULT_D
   child.stdout?.on("data", appendOutput);
   child.stderr?.on("data", appendOutput);
 
-  return new Promise<{ running: boolean; message: string }>((resolve) => {
+  return new Promise<{ running: boolean; ready?: boolean; message: string }>((resolve) => {
     let settled = false;
-    const finish = (result: { running: boolean; message: string }) => {
+    const finish = (result: { running: boolean; ready?: boolean; message: string }) => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
       resolve(result);
     };
 
-    const timer = setTimeout(() => finish(previewStatus()), 900);
+    const timer = setTimeout(async () => {
+      const ready = await waitForPreview(project.previewUrl, child);
+      if (ready) {
+        finish({
+          ...previewStatus(),
+          ready,
+          message: `${previewStatus().message}\n预览地址已可访问: ${project.previewUrl}`
+        });
+        return;
+      }
+      finish({
+        ...previewStatus(),
+        ready: false,
+        message: `${previewStatus().message}\n预览进程已启动，但 ${project.previewUrl} 暂时还没有响应。\n请稍等几秒后再点“预览”或“刷新预览”。\n${lastOutput}`.trim()
+      });
+    }, 900);
 
     child.once("error", (error) => {
       processRef = null;
