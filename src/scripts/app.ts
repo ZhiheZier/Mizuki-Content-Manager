@@ -339,16 +339,45 @@ function slugFromMarkdownPath(filePath: string) {
     .replace(/\/index$/i, "");
 }
 
+function recordFieldValue(name: string) {
+  const input = els.recordForm.querySelector<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>(`[name="${name}"]`);
+  if (!input) return "";
+  if (input instanceof HTMLInputElement && input.type === "checkbox") return input.checked ? "true" : "";
+  return input.value.trim();
+}
+
+function cleanRoutePath(value: string) {
+  const cleaned = value.trim().replace(/^\/+/, "").replace(/\/+$/, "");
+  return cleaned ? `/${cleaned}/` : "/";
+}
+
 function currentPreviewPath() {
   if (activeCategory === "blog") {
+    const customPath = recordFieldValue("permalink") || recordFieldValue("alias");
+    if (customPath) return cleanRoutePath(customPath);
+
     const source = activeRecordId || activePath;
     const slug = slugFromMarkdownPath(source);
-    return slug ? `/posts/${slug}/` : "/";
+    return slug ? cleanRoutePath(slug) : "/";
   }
-  if (activeCategory === "about") return "/about/";
-  if (activeCategory === "friends") return "/friends/";
-  if (activeCategory === "albums") return "/gallery/";
-  return "/";
+
+  if (activeCategory === "albums") {
+    const albumId = activeRecordId || albumDirectoryName();
+    return albumId ? `/albums/${encodeURIComponent(albumId)}/` : "/albums/";
+  }
+
+  const routes: Partial<Record<CategoryKey, string>> = {
+    about: "/about/",
+    diary: "/diary/",
+    friends: "/friends/",
+    projects: "/projects/",
+    timeline: "/timeline/",
+    skills: "/skills/",
+    devices: "/devices/",
+    aiTools: "/ai-tools/",
+    anime: "/anime/"
+  };
+  return routes[activeCategory] || "/";
 }
 
 function currentPreviewUrl() {
