@@ -16,6 +16,23 @@ function appendOutput(chunk: unknown) {
   lastOutput = `${lastOutput}${text}`.split(/\r?\n/).slice(-12).join("\n");
 }
 
+function spawnPreview(command: string, cwd: string) {
+  if (process.platform !== "win32") {
+    const [cmd, ...args] = commandParts(command);
+    return spawn(cmd, args, {
+      cwd,
+      stdio: ["ignore", "pipe", "pipe"],
+      windowsHide: true
+    });
+  }
+
+  return spawn("cmd.exe", ["/d", "/s", "/c", command], {
+    cwd,
+    stdio: ["ignore", "pipe", "pipe"],
+    windowsHide: true
+  });
+}
+
 export function previewStatus() {
   if (!processRef) return { running: false, message: "预览服务未启动。" };
   const code = processRef.exitCode;
@@ -38,15 +55,9 @@ export async function startPreview(project: ResolvedProject, command = DEFAULT_D
     };
   }
 
-  const [cmd, ...args] = commandParts(command);
   lastOutput = "";
 
-  const child = spawn(cmd, args, {
-    cwd: project.codeRoot,
-    stdio: ["ignore", "pipe", "pipe"],
-    shell: process.platform === "win32",
-    windowsHide: true
-  });
+  const child = spawnPreview(command, project.codeRoot);
   processRef = child;
   meta = { codeRoot: project.codeRoot, command, startedAt: Date.now() };
   child.stdout?.on("data", appendOutput);
@@ -86,7 +97,11 @@ export async function startPreview(project: ResolvedProject, command = DEFAULT_D
 export async function stopPreview() {
   if (!processRef) return { running: false, message: "预览服务未启动。" };
   if (processRef.exitCode === null) {
-    processRef.kill();
+    if (process.platform === "win32" && processRef.pid) {
+      spawn("taskkill", ["/pid", String(processRef.pid), "/T", "/F"], { stdio: "ignore", windowsHide: true });
+    } else {
+      processRef.kill();
+    }
   }
   processRef = null;
   meta = null;
