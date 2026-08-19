@@ -6,12 +6,14 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" type="image/png" href="/logo.png" />
     <title>Mizuki Content Manager</title>
   </head>
   <body>
     <main class="app-shell">
       <aside class="sidebar">
         <section class="brand">
+          <img class="brand-logo" src="/logo.png" alt="Mizuki" />
           <h1>Mizuki CM</h1>
           <p>内容编辑与预览</p>
         </section>
@@ -211,6 +213,19 @@
     color: #fff;
     border-radius: 8px;
     padding: 18px;
+    display: grid;
+    grid-template-columns: 96px minmax(0, 1fr);
+    align-items: center;
+    gap: 14px;
+  }
+
+  .brand-logo {
+    display: block;
+    width: 96px;
+    height: 42px;
+    object-fit: contain;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.92);
   }
 
   .brand h1 {
