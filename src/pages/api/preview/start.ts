@@ -7,5 +7,5 @@ export const prerender = false;
 export const POST: APIRoute = async ({ request }) => {
   const input = await request.json();
   const project = resolveProject(input.project);
-  return Response.json(startPreview(project, input.command || DEFAULT_DEV_COMMAND));
+  return Response.json(await startPreview(project, input.command || DEFAULT_DEV_COMMAND));
 };

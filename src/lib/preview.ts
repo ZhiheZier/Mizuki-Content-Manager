@@ -3,12 +3,17 @@ import { DEFAULT_DEV_COMMAND, looksLikeMizukiRepo, type ResolvedProject } from "
 
 let processRef: ChildProcess | null = null;
 let meta: { codeRoot: string; command: string; startedAt: number } | null = null;
+let lastOutput = "";
 
 function commandParts(command: string) {
   const parts = command.trim().split(/\s+/).filter(Boolean);
   if (!parts.length) return commandParts(DEFAULT_DEV_COMMAND);
-  if (process.platform === "win32" && parts[0] === "pnpm") parts[0] = "pnpm.cmd";
   return parts;
+}
+
+function appendOutput(chunk: unknown) {
+  const text = String(chunk || "");
+  lastOutput = `${lastOutput}${text}`.split(/\r?\n/).slice(-12).join("\n");
 }
 
 export function previewStatus() {
@@ -21,10 +26,10 @@ export function previewStatus() {
       message: `预览服务运行中。\n代码仓库: ${meta?.codeRoot}\n命令: ${meta?.command}\n运行时长: ${elapsed}s`
     };
   }
-  return { running: false, message: `预览服务已退出，退出码 ${code}。` };
+  return { running: false, message: `预览服务已退出，退出码 ${code}。\n${lastOutput}`.trim() };
 }
 
-export function startPreview(project: ResolvedProject, command = DEFAULT_DEV_COMMAND) {
+export async function startPreview(project: ResolvedProject, command = DEFAULT_DEV_COMMAND) {
   if (processRef && processRef.exitCode === null) return previewStatus();
   if (!looksLikeMizukiRepo(project.codeRoot)) {
     return {
@@ -34,18 +39,48 @@ export function startPreview(project: ResolvedProject, command = DEFAULT_DEV_COM
   }
 
   const [cmd, ...args] = commandParts(command);
+  lastOutput = "";
+
   const child = spawn(cmd, args, {
     cwd: project.codeRoot,
-    stdio: "ignore",
-    shell: false,
+    stdio: ["ignore", "pipe", "pipe"],
+    shell: process.platform === "win32",
     windowsHide: true
   });
   processRef = child;
   meta = { codeRoot: project.codeRoot, command, startedAt: Date.now() };
-  child.once("exit", () => {
-    meta = null;
+  child.stdout?.on("data", appendOutput);
+  child.stderr?.on("data", appendOutput);
+
+  return new Promise<{ running: boolean; message: string }>((resolve) => {
+    let settled = false;
+    const finish = (result: { running: boolean; message: string }) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(result);
+    };
+
+    const timer = setTimeout(() => finish(previewStatus()), 900);
+
+    child.once("error", (error) => {
+      processRef = null;
+      meta = null;
+      finish({
+        running: false,
+        message: `预览启动失败: ${error.message}\n请确认已安装 pnpm，并且 Mizuki 仓库可以在终端中运行 pnpm dev。`
+      });
+    });
+
+    child.once("exit", (code) => {
+      processRef = null;
+      meta = null;
+      finish({
+        running: false,
+        message: `预览服务启动后立即退出，退出码 ${code ?? "未知"}。\n${lastOutput}`.trim()
+      });
+    });
   });
-  return previewStatus();
 }
 
 export async function stopPreview() {
