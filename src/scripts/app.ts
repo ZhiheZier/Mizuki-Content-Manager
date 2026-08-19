@@ -15,6 +15,22 @@ interface AppConfig {
   codeRoot?: string;
 }
 
+interface ResolvedProjectInfo {
+  contentMode: "integrated" | "separated";
+  contentRoot: string;
+  codeRoot: string;
+  previewUrl: string;
+}
+
+interface GitStatus {
+  repoRoot: string;
+  isGitRepo: boolean;
+  dirty: boolean;
+  ahead: boolean;
+  summary: string;
+  output: string;
+}
+
 type CategoryKey = "about" | "diary" | "friends" | "blog" | "projects" | "timeline" | "skills" | "devices" | "aiTools" | "anime" | "albums";
 
 interface FieldConfig {
@@ -42,6 +58,7 @@ interface PendingImageUpload {
 }
 
 let project: ProjectInput | null = null;
+let resolvedProject: ResolvedProjectInfo | null = null;
 let activePath = "";
 let projectLocked = false;
 let fileNodes: FileNode[] = [];
@@ -65,6 +82,7 @@ const els = {
   applyProject: $<HTMLButtonElement>("applyProject"),
   startPreview: $<HTMLButtonElement>("startPreview"),
   stopPreview: $<HTMLButtonElement>("stopPreview"),
+  pushContent: $<HTMLButtonElement>("pushContent"),
   refreshFiles: $<HTMLButtonElement>("refreshFiles"),
   saveFile: $<HTMLButtonElement>("saveFile"),
   saveRecord: $<HTMLButtonElement>("saveRecord"),
@@ -178,14 +196,14 @@ async function post<T>(url: string, body: unknown): Promise<T> {
     body: JSON.stringify(body)
   });
   const data = await response.json();
-  if (!response.ok || data.ok === false) throw new Error(data.error || "Request failed");
+  if (!response.ok || data.ok === false) throw new Error(data.error || data.message || "Request failed");
   return data;
 }
 
 async function get<T>(url: string): Promise<T> {
   const response = await fetch(url);
   const data = await response.json();
-  if (!response.ok || data.ok === false) throw new Error(data.error || "Request failed");
+  if (!response.ok || data.ok === false) throw new Error(data.error || data.message || "Request failed");
   return data;
 }
 
@@ -1098,7 +1116,8 @@ async function openCategory(category: CategoryKey) {
 
 async function applyProject() {
   project = collectProject();
-  const data = await post<{ summary: string; project: { previewUrl: string } }>("/api/project", project);
+  const data = await post<{ summary: string; project: ResolvedProjectInfo }>("/api/project", project);
+  resolvedProject = data.project;
   await post<{ config: AppConfig }>("/api/config", project);
   appendLog(`项目配置已应用。\n${data.summary}`);
   els.previewFrame.src = data.project.previewUrl;
@@ -1126,6 +1145,28 @@ async function refreshFiles() {
   fileNodes = data.files;
   renderTree(fileNodes);
   appendLog("文件目录已刷新。");
+}
+
+async function checkContentGitBeforePreview() {
+  if (!project || resolvedProject?.contentMode !== "separated") return true;
+  const data = await post<{ status: GitStatus }>("/api/git/status", { project });
+  const status = data.status;
+  appendLog(`启动预览前检查内容仓库 Git 状态。\n${status.summary}`);
+  if (!status.isGitRepo) return true;
+  if (!status.dirty && !status.ahead) return true;
+  appendLog("内容分离模式下，启动预览会同步远程内容仓库，可能覆盖本地未推送内容。请先保存并点击“推送”，确认内容仓库干净后再启动预览。");
+  return false;
+}
+
+async function pushContent() {
+  if (!project) await applyProject();
+  if (recordDirty || sourceDirty) {
+    appendLog("当前页面还有未保存内容。请先点击“保存记录”或“保存”，再推送内容仓库。");
+    return;
+  }
+  if (!(await showConfirm("推送内容仓库？", "这会在内容仓库中执行 git add、git commit 和 git push。确定继续吗？", "推送"))) return;
+  const data = await post<{ message: string }>("/api/git/push", { project });
+  appendLog(data.message);
 }
 
 async function readFile(path: string) {
@@ -1159,6 +1200,7 @@ async function saveFile() {
 
 async function startPreview() {
   if (!project) await applyProject();
+  if (!(await checkContentGitBeforePreview())) return;
   const data = await post<{ message: string }>("/api/preview/start", { project });
   appendLog(data.message);
 }
@@ -1201,7 +1243,9 @@ els.applyProject.addEventListener("click", () => {
 els.codeRoot.addEventListener("input", () => {
   els.applyProject.textContent = "确定";
   projectLocked = false;
+  resolvedProject = null;
 });
+els.pushContent.addEventListener("click", () => pushContent().catch(handleError));
 els.refreshFiles.addEventListener("click", () => refreshFiles().catch(handleError));
 els.saveFile.addEventListener("click", () => saveFile().catch(handleError));
 els.editor.addEventListener("input", markSourceDirty);

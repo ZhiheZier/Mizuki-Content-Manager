@@ -35,7 +35,10 @@
         <section class="panel file-panel">
           <div class="panel-head">
             <h2>文件</h2>
-            <button id="refreshFiles">刷新</button>
+            <div class="panel-actions">
+              <button id="pushContent" type="button">推送</button>
+              <button id="refreshFiles" type="button">刷新</button>
+            </div>
           </div>
           <div id="fileTree" class="file-tree"></div>
         </section>
@@ -343,6 +346,12 @@
   .panel-head h2 {
     margin: 0;
     line-height: 32px;
+  }
+
+  .panel-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
   }
 
   .panel-head button {
