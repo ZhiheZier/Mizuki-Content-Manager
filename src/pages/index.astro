@@ -6,12 +6,20 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" href="/favicon/favicon.ico" sizes="64x64" />
+    <link rel="preload" href="/theme/ZenMaruGothic-Medium.woff2" as="font" type="font/woff2" crossorigin />
+    <script is:inline>
+      try {
+        const theme = localStorage.getItem("mcm-theme");
+        document.documentElement.classList.toggle("dark", theme === "dark" || (!theme && matchMedia("(prefers-color-scheme: dark)").matches));
+      } catch {}
+    </script>
     <title>Mizuki Content Manager</title>
   </head>
   <body>
-    <header><img src="/logo.png" alt="Mizuki" width="122" height="40" /><span>Content Manager</span><span class="local">本地工作区</span></header>
+    <header><div class="nav-inner"><a class="brand" href="/" aria-label="Mizuki Content Manager"><img src="/logo.png" alt="Mizuki" width="122" height="40" /><span>Content Manager</span></a><span class="local">本地工作区</span><label class="theme-switch" title="切换深色模式"><span>深色</span><input id="themeToggle" type="checkbox" role="switch" aria-label="深色模式" /><span class="switch-track" aria-hidden="true"></span></label></div></header>
+    <div class="banner"><div class="banner-content"><span class="banner-label">MIZUKI</span><h1>Mizuki Content Manager</h1><p>内容编辑与预览</p></div></div>
     <main>
-      <div class="heading"><h1>打开博客</h1><p>选择你的 Mizuki 代码仓库。</p></div>
+      <div class="heading"><h2>打开博客</h2><p>选择你的 Mizuki 代码仓库。</p></div>
       <form id="projectForm">
         <label for="codeRoot">代码仓库路径</label>
         <div class="path-row"><input id="codeRoot" name="codeRoot" placeholder="D:/Projects/your-mizuki-blog" autocomplete="off" required /><button id="confirmProject" type="submit">确定</button></div>
@@ -27,42 +35,98 @@
       <footer><a href="/editor">打开现有内容编辑器</a><span>Mizuki Content Manager</span></footer>
     </main>
     <script src="../scripts/launcher.ts"></script>
+    <script>
+      const toggle = document.getElementById("themeToggle") as HTMLInputElement;
+      toggle.checked = document.documentElement.classList.contains("dark");
+      toggle.addEventListener("change", () => {
+        document.documentElement.classList.toggle("dark", toggle.checked);
+        try { localStorage.setItem("mcm-theme", toggle.checked ? "dark" : "light"); } catch {}
+      });
+    </script>
   </body>
 </html>
 <style>
+  @font-face { font-family: Mizuki; src: url('/theme/ZenMaruGothic-Medium.woff2') format('woff2'); font-weight: 500; font-display: swap; }
+  :global(:root) {
+    --hue: 240;
+    --primary: oklch(.70 .14 var(--hue));
+    --page-bg: oklch(.95 .01 var(--hue));
+    --card-bg: white;
+    --btn-bg: oklch(.95 .025 var(--hue));
+    --btn-hover: oklch(.90 .05 var(--hue));
+    --btn-content: oklch(.55 .12 var(--hue));
+    --text: #30343b;
+    --muted: #727782;
+    --line: #e6e9ef;
+    --field-bg: #f5f7fa;
+    --notice-bg: #fbf7e9;
+    --notice-text: #806e37;
+    --radius: 16px;
+    color-scheme: light;
+  }
+  :global(:root.dark) {
+    --primary: oklch(.75 .14 var(--hue));
+    --page-bg: oklch(.16 .014 var(--hue));
+    --card-bg: oklch(.23 .015 var(--hue));
+    --btn-bg: oklch(.33 .035 var(--hue));
+    --btn-hover: oklch(.38 .04 var(--hue));
+    --btn-content: oklch(.75 .10 var(--hue));
+    --text: #e3e5e9;
+    --muted: #a3a8b2;
+    --line: #353c46;
+    --field-bg: #252b34;
+    --notice-bg: #342f22;
+    --notice-text: #d6c591;
+    color-scheme: dark;
+  }
   :global(*) { box-sizing: border-box; }
   :global([hidden]) { display: none !important; }
-  :global(body) { margin: 0; color: #202a35; background: #f6f8fa; font-family: system-ui, sans-serif; font-size: 14px; letter-spacing: 0; }
-  header { height: 76px; display: flex; align-items: center; gap: 18px; padding: 0 32px; border-bottom: 1px solid #dde3e9; background: white; }
+  :global(body) { margin: 0; color: var(--text); background: var(--page-bg); font-family: Mizuki, system-ui, sans-serif; font-size: 14px; letter-spacing: 0; line-height: 1.6; transition: background .2s, color .2s; }
+  header { background: var(--card-bg); position: relative; z-index: 1; }
+  .nav-inner { max-width: 1120px; margin: auto; min-height: 72px; display: flex; align-items: center; gap: 22px; padding: 12px 32px; }
+  .brand { display: flex; align-items: center; gap: 16px; color: var(--text); text-decoration: none; font-weight: 600; }
   header img { object-fit: contain; }
-  header > span { font-weight: 600; }
-  .local { margin-left: auto; color: #637080; font-size: 12px; }
-  main { max-width: 840px; margin: 0 auto; padding: 52px 28px 28px; }
-  h1 { margin: 0; font-size: 30px; } .heading p { color: #637080; margin: 10px 0 32px; }
+  .local { margin-left: auto; color: var(--muted); font-size: 12px; }
+  .theme-switch { display: flex; align-items: center; gap: 8px; margin: 0; cursor: pointer; color: var(--muted); font-size: 12px; }
+  .theme-switch input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+  .switch-track { width: 34px; height: 20px; border-radius: 20px; background: var(--btn-bg); position: relative; border: 1px solid var(--line); }
+  .switch-track::after { content: ''; position: absolute; width: 12px; height: 12px; top: 3px; left: 3px; border-radius: 50%; background: var(--btn-content); transition: transform .2s; }
+  .theme-switch input:checked + .switch-track::after { transform: translateX(14px); }
+  .theme-switch input:focus-visible + .switch-track { outline: 2px solid var(--primary); outline-offset: 3px; }
+  .banner { height: 240px; background: url('/theme/banner.webp') center 20% / cover; }
+  .banner-content { max-width: 1120px; height: 100%; margin: auto; padding: 28px 32px; display: flex; flex-direction: column; justify-content: end; color: white; text-shadow: 0 2px 8px #183951; }
+  .banner-label { font-size: 11px; font-weight: 600; }
+  h1 { margin: 4px 0; font-size: 30px; line-height: 1.3; }
+  .banner p { margin: 2px 0 0; }
+  main { max-width: 900px; margin: 0 auto; padding: 32px 32px 28px; }
+  .heading h2 { font-size: 23px; }
+  .heading h2::before, .section-head h2::before { content: ''; display: inline-block; width: 4px; height: .9em; border-radius: 4px; margin-right: 10px; background: var(--primary); }
+  .heading p { color: var(--muted); margin: 8px 0 26px; }
   label { display: block; font-weight: 600; margin-bottom: 10px; }
   .path-row { display: flex; gap: 10px; }
-  input { flex: 1; min-width: 0; height: 44px; border: 1px solid #cbd4df; border-radius: 6px; background: white; padding: 0 12px; font: inherit; }
-  input:read-only { background: #edf1f5; color: #647080; }
-  button { min-height: 40px; border: 1px solid #cbd4df; border-radius: 6px; background: white; color: #202a35; padding: 0 18px; font: inherit; font-weight: 600; cursor: pointer; }
+  input { flex: 1; min-width: 0; height: 44px; border: 1px solid var(--line); border-radius: 8px; background: var(--card-bg); color: var(--text); padding: 0 14px; font: inherit; }
+  input:read-only { background: var(--field-bg); color: var(--muted); }
+  button { min-height: 40px; border: 0; border-radius: 8px; background: var(--btn-bg); color: var(--btn-content); padding: 0 18px; font: inherit; font-weight: 600; cursor: pointer; transition: background .15s, color .15s; }
   .path-row button { height: 44px; }
-  button:hover:not(:disabled) { background: #edf3fb; }
+  button:hover:not(:disabled) { background: var(--btn-hover); }
   button:disabled { opacity: .5; cursor: default; }
-  input:focus-visible, button:focus-visible, a:focus-visible { outline: 2px solid #2563eb; outline-offset: 3px; }
-  #projectDetails { border-top: 1px solid #dde3e9; margin-top: 28px; padding-top: 22px; }
+  input:focus-visible, button:focus-visible, a:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
+  #projectDetails { border-top: 1px solid var(--line); margin-top: 24px; padding-top: 22px; }
   .section-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
   h2 { margin: 0; font-size: 14px; font-weight: 650; }
-  .badge { color: #13724f; background: #e6f5ee; border-radius: 4px; padding: 4px 8px; font-size: 12px; }
+  .badge { color: var(--btn-content); background: var(--btn-bg); border-radius: 6px; padding: 4px 10px; font-size: 12px; }
   dl { display: grid; grid-template-columns: 88px minmax(0, 1fr); gap: 14px; margin: 22px 0; }
-  dt { color: #647080; } dd { margin: 0; overflow-wrap: anywhere; }
-  .notice { padding: 14px 16px; background: #fff7de; border-left: 3px solid #c39422; color: #725b20; line-height: 1.7; }
+  dt { color: var(--muted); } dd { margin: 0; overflow-wrap: anywhere; }
+  .notice { padding: 12px 16px; background: var(--notice-bg); border-left: 3px solid #c8b56d; border-radius: 0 8px 8px 0; color: var(--notice-text); line-height: 1.7; }
   .notice p { margin: 0 0 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
   #gitBlock button { margin: 4px 8px 4px 0; }
   .launch-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 26px 0; }
-  #status { color: #647080; } .primary { background: #2563eb; color: white; border-color: #2563eb; min-height: 44px; }
-  .primary:hover:not(:disabled) { background: #1d4ed8; }
-  .logs { border-top: 1px solid #dde3e9; padding-top: 18px; margin-top: 12px; }
-  .text-button { border: none; background: transparent; color: #647080; font-size: 12px; min-height: 30px; padding: 0 4px; }
-  pre { height: 180px; overflow: auto; padding: 16px; margin: 12px 0 0; border: 1px solid #dfe5eb; border-radius: 6px; background: #fff; color: #526172; font: 12px/1.8 ui-monospace, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
-  footer { margin-top: 24px; display: flex; justify-content: space-between; gap: 16px; font-size: 12px; color: #7a8694; } a { color: #526172; }
-  @media (max-width: 600px) { header { padding: 0 18px; gap: 10px; } header > span { font-size: 12px; } main { padding: 30px 18px; } .launch-row { align-items: stretch; flex-direction: column; } footer { flex-wrap: wrap; } }
+  #status { color: var(--muted); } .primary { background: var(--primary); color: #102c45; min-height: 44px; }
+  .primary:hover:not(:disabled) { background: var(--btn-hover); color: var(--btn-content); }
+  .logs { border-top: 1px solid var(--line); padding-top: 18px; margin-top: 8px; }
+  .text-button { border: none; background: transparent; color: var(--muted); font-size: 12px; min-height: 30px; padding: 0 8px; }
+  pre { height: 180px; overflow: auto; padding: 18px; margin: 12px 0 0; border: 0; border-radius: var(--radius); background: var(--card-bg); color: var(--muted); font: 12px/1.8 ui-monospace, monospace; white-space: pre-wrap; overflow-wrap: anywhere; scrollbar-width: thin; scrollbar-color: var(--btn-hover) transparent; }
+  footer { margin-top: 24px; display: flex; justify-content: space-between; gap: 16px; font-size: 12px; color: var(--muted); } a { color: var(--btn-content); text-decoration: none; } a:hover { color: var(--primary); }
+  @media (max-width: 600px) { .nav-inner { padding: 10px 18px; gap: 10px; } .brand { gap: 8px; font-size: 12px; } .brand img { width: 94px; height: 32px; } .local { display: none; } .theme-switch { margin-left: auto; } .banner { height: 180px; } .banner-content { padding: 20px 18px; } h1 { font-size: 24px; max-width: 260px; } main { padding: 26px 18px; } .launch-row { align-items: stretch; flex-direction: column; } footer { flex-wrap: wrap; } }
+  @media (prefers-reduced-motion: reduce) { :global(*) { transition: none !important; } }
 </style>
