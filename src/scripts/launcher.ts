@@ -8,18 +8,12 @@ const blogEditor = element<HTMLButtonElement>("blogEditor");
 const pushButton = element<HTMLButtonElement>("push");
 const retryButton = element<HTMLButtonElement>("retry");
 const statusLabel = element("status");
-const logView = element("log");
 let selected: LauncherProject | null = null;
 let busy = false;
 let readyUrl = "";
 let checkingPreview = false;
-const lines: string[] = [];
 
 function log(message: string) {
-  lines.push(`[${new Date().toLocaleTimeString("zh-CN", { hour12: false })}] ${message}`);
-  if (lines.length > 80) lines.shift();
-  logView.textContent = lines.join("\n");
-  logView.scrollTop = logView.scrollHeight;
   void fetch("/api/logs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message }) }).catch(() => undefined);
 }
 
@@ -77,7 +71,7 @@ async function run(action: () => Promise<void>) {
   if (busy) return;
   setBusy(true);
   try { await action(); } catch (error) {
-    statusLabel.textContent = "操作未完成";
+    statusLabel.textContent = error instanceof Error ? error.message : String(error);
     log(error instanceof Error ? error.message : String(error));
   } finally { setBusy(false); }
 }
@@ -168,7 +162,6 @@ pushButton.addEventListener("click", () => void run(async () => {
   const result = await request<{ message: string }>("/api/git/push", { project: { codeRoot: selected.codeRoot } });
   log(result.message); statusLabel.textContent = "内容已推送，可以启动博客";
 }));
-element("clearLog").addEventListener("click", () => { lines.length = 0; logView.textContent = "暂无日志"; });
 void run(async () => {
   const data = await request<{ config: { codeRoot?: string } }>("/api/config");
   if (data.config.codeRoot) { pathInput.value = data.config.codeRoot; await confirmProject(); }

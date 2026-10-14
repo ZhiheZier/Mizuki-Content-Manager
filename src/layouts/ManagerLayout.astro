@@ -1,0 +1,29 @@
+---
+import ManagerNav from "../components/ManagerNav.astro";
+import "../styles/manager.css";
+interface Props { page: "launcher" | "workspace" | "logs"; title?: string; }
+const { page, title = "Mizuki Content Manager" } = Astro.props;
+---
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" href="/favicon/favicon.ico" sizes="64x64" />
+    <link rel="preload" href="/theme/fonts/ZenMaruGothic-Medium.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/theme/fonts/loli.woff2" as="font" type="font/woff2" crossorigin />
+    <script is:inline>
+      try {
+        const theme = localStorage.getItem("mcm-theme");
+        document.documentElement.classList.toggle("dark", theme === "dark" || (!theme && matchMedia("(prefers-color-scheme: dark)").matches));
+        const hue = localStorage.getItem("mcm-hue");
+        if (hue !== null && Number.isFinite(Number(hue))) document.documentElement.style.setProperty("--hue", String(Math.max(0, Math.min(360, Number(hue)))));
+      } catch {}
+    </script>
+    <title>{title}</title>
+  </head>
+  <body class:list={["manager", {workspace: page === "workspace"}]} data-page={page}>
+    <ManagerNav page={page} />
+    <slot />
+  </body>
+</html>

@@ -51,3 +51,27 @@ export function appendAppLog(message: string) {
     .join("\n");
   fs.appendFileSync(path.join(LOG_DIR, logFileName()), `${lines}\n`, "utf8");
 }
+
+export function listAppLogs() {
+  if (!fs.existsSync(LOG_DIR)) return [];
+  return fs.readdirSync(LOG_DIR, { withFileTypes: true })
+    .filter((entry) => entry.isFile() && /^\d{4}-\d{2}-\d{2}\.log$/.test(entry.name))
+    .map((entry) => entry.name.slice(0, -4))
+    .sort().reverse();
+}
+
+export function readAppLog(date: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error("无效的日志日期。");
+  const filename = path.join(LOG_DIR, `${date}.log`);
+  if (!fs.existsSync(filename)) return "";
+  const file = fs.openSync(filename, "r");
+  try {
+    const size = fs.fstatSync(file).size;
+    const start = Math.max(0, size - 512 * 1024);
+    const buffer = Buffer.alloc(Math.min(size, 512 * 1024));
+    fs.readSync(file, buffer, 0, buffer.length, start);
+    const content = buffer.toString("utf8");
+    // Skip an incomplete first line when reading the tail of a large log.
+    return redactCredentials(start ? content.slice(content.indexOf("\n") + 1) : content);
+  } finally { fs.closeSync(file); }
+}

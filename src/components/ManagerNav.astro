@@ -1,0 +1,28 @@
+---
+import Icon from "./Icon.astro";
+interface Props { page: "launcher" | "workspace" | "logs"; }
+const { page } = Astro.props;
+---
+<header class:list={["manager-navbar", { "bottom": page === "workspace" }]}>
+  <div class="nav-inner">
+    <a class="brand" href="/" aria-label="Mizuki Content Manager"><img src="/theme/mizuki-icon.webp" alt="" width="28" height="28" /><span>Mizuki CM</span></a>
+    <nav aria-label="主导航">
+      <a class:list={["nav-link", {active: page === "launcher"}]} href="/" aria-current={page === "launcher" ? "page" : undefined}>启动页</a>
+      <button id="blogEditor" class:list={["nav-link", {active: page === "workspace"}]} type="button" aria-current={page === "workspace" ? "page" : undefined} disabled={page !== "workspace"}>博客编辑</button>
+      <a class:list={["nav-link", {active: page === "logs"}]} href="/logs" aria-current={page === "logs" ? "page" : undefined}>运行日志</a>
+    </nav>
+    <div class="nav-tools">
+      {page === "workspace" && <button id="reloadBlog" class="icon-button" type="button" title="刷新博客" aria-label="刷新博客" disabled><Icon name="RefreshCw" /></button>}
+      <button id="appearanceToggle" class="icon-button" type="button" title="外观设置" aria-label="外观设置" aria-expanded="false" aria-controls="appearancePanel"><Icon name="Palette" /></button>
+      <button id="themeToggle" class="icon-button" type="button" title="切换深色模式" aria-label="切换深色模式" aria-pressed="false"><Icon name="Sun" class="sun-icon" /><Icon name="Moon" class="moon-icon" /></button>
+      <div id="appearancePanel" class="appearance-panel" hidden>
+        <div class="section-head"><label for="themeHue">主题色</label><span class="color-preview" aria-hidden="true"></span></div>
+        <input id="themeHue" type="range" min="0" max="360" value="240" />
+        <div class="hue-presets">
+          {[{hue: 240, name: "蓝色"}, {hue: 160, name: "绿色"}, {hue: 30, name: "珊瑚色"}, {hue: 345, name: "粉色"}, {hue: 290, name: "紫色"}].map(({hue, name}) => <button class="hue-preset" type="button" data-hue={hue} style={`--swatch: oklch(.70 .14 ${hue})`} aria-label={name} title={name} aria-pressed={hue === 240}></button>)}
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+<script src="../scripts/navigation.ts"></script>

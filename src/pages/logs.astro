@@ -1,0 +1,27 @@
+---
+import ManagerLayout from "../layouts/ManagerLayout.astro";
+import Icon from "../components/Icon.astro";
+---
+<ManagerLayout page="logs" title="Mizuki - 运行日志">
+  <main class="log-page">
+    <div class="heading"><span class="eyebrow">本地工作区</span><h1>运行日志</h1></div>
+    <div class="log-toolbar">
+      <label for="logDate">日期</label><input id="logDate" type="date" aria-label="日志日期" />
+      <label class="follow-label"><input id="followLog" type="checkbox" checked />自动滚动</label>
+      <button id="refreshLogs" class="icon-button" type="button" aria-label="刷新日志" title="刷新日志"><Icon name="RefreshCw" /></button>
+    </div>
+    <p id="logStatus" class="eyebrow" role="status">正在读取日志…</p>
+    <pre id="logContent" class="log-content" tabindex="0" aria-label="日志内容">正在读取日志…</pre>
+  </main>
+  <script src="../scripts/log-viewer.ts"></script>
+</ManagerLayout>
+<style>
+  .log-page { max-width: 1100px; }
+  .log-toolbar { display: flex; align-items: center; gap: 12px; margin-top: 24px; flex-wrap: wrap; }
+  .log-toolbar label { margin: 0; }
+  #logDate { flex: none; width: 170px; }
+  .follow-label { margin-left: auto !important; display: flex; align-items: center; gap: 8px; }
+  .follow-label input { flex: none; width: 16px; height: 16px; accent-color: var(--primary); }
+  .log-content { height: max(280px, calc(100dvh - 310px)); }
+  @media(max-width: 600px) { .follow-label { margin-left: 0 !important; } .log-content { height: max(280px, calc(100dvh - 350px)); } }
+</style>

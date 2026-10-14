@@ -1,40 +1,34 @@
 ---
+import ManagerLayout from "../layouts/ManagerLayout.astro";
 ---
-<!doctype html>
-<html lang="zh-CN">
-  <head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><link rel="icon" href="/favicon/favicon.ico" /><title>Mizuki - 博客工作区</title></head>
-  <body>
-    <header><a href="/">返回启动页</a><strong>博客工作区</strong><span id="address"></span><button id="reload" type="button" disabled>刷新</button></header>
-    <p id="message" role="status">正在打开博客…</p>
-    <iframe id="blog" title="Mizuki 博客" hidden></iframe>
-    <script>
-      const frame = document.getElementById("blog") as HTMLIFrameElement;
-      const message = document.getElementById("message")!;
-      const reload = document.getElementById("reload") as HTMLButtonElement;
-      try {
-        const session = JSON.parse(sessionStorage.getItem("mcm-workspace") || "null");
-        const url = new URL(session?.previewUrl);
-        if (!['localhost', '127.0.0.1', '[::1]'].includes(url.hostname) || !['http:', 'https:'].includes(url.protocol)) throw new Error("无效的本地预览地址");
-        document.getElementById("address")!.textContent = url.origin;
-        frame.src = url.href;
-        frame.hidden = false;
-        message.hidden = true;
-        reload.disabled = false;
-        reload.addEventListener("click", () => { frame.src = url.href; });
-      } catch {
-        message.textContent = "请返回启动页，先启动博客。";
+<ManagerLayout page="workspace" title="Mizuki - 博客编辑">
+  <p id="message" class="workspace-message" role="status">正在打开博客…</p>
+  <iframe id="blog" class="blog-frame" title="Mizuki 博客" hidden></iframe>
+  <script>
+    const frame = document.getElementById("blog") as HTMLIFrameElement;
+    const message = document.getElementById("message")!;
+    const reload = document.getElementById("reloadBlog") as HTMLButtonElement;
+    async function openBlog() {
+      let session: { codeRoot?: string; previewUrl?: string } | null = null;
+      try { session = JSON.parse(sessionStorage.getItem("mcm-workspace") || "null"); } catch {}
+      if (!session?.previewUrl) {
+        const response = await fetch("/api/config");
+        const { config } = await response.json();
+        if (!config.codeRoot) throw new Error("请先选择仓库");
+        const stateResponse = await fetch("/api/preview/status", { method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({project: {codeRoot: config.codeRoot}}) });
+        const state = await stateResponse.json();
+        if (!state.ready || !state.previewUrl) throw new Error("博客未运行");
+        session = {codeRoot: config.codeRoot, previewUrl: state.previewUrl};
+        sessionStorage.setItem("mcm-workspace", JSON.stringify(session));
       }
-    </script>
-  </body>
-</html>
-<style>
-  :global(*) { box-sizing: border-box; } :global([hidden]) { display: none !important; }
-  :global(body) { margin: 0; font: 14px system-ui, sans-serif; color: #202a35; background: #f6f8fa; }
-  header { display: flex; align-items: center; gap: 20px; min-height: 56px; padding: 10px 20px; background: white; border-bottom: 1px solid #dce3ea; flex-wrap: wrap; }
-  a { color: #526172; text-decoration: none; } a:hover { color: #2563eb; }
-  #address { margin-left: auto; color: #647080; font-size: 12px; }
-  button { height: 32px; border: 1px solid #cbd4df; border-radius: 4px; background: white; padding: 0 12px; cursor: pointer; }
-  body { height: 100dvh; display: flex; flex-direction: column; }
-  iframe { display: block; width: 100%; flex: 1; min-height: 0; border: none; background: white; }
-  p { padding: 24px; } @media (max-width: 600px) { header { gap: 12px; } #address { display: none; } }
-</style>
+      const url = new URL(session.previewUrl!);
+      if (!["localhost", "127.0.0.1", "[::1]"].includes(url.hostname) || !["http:", "https:"].includes(url.protocol) || url.username || url.password) throw new Error("无效的本地预览地址");
+      frame.src = url.href;
+      frame.hidden = false;
+      message.hidden = true;
+      reload.disabled = false;
+      reload.addEventListener("click", () => { frame.src = url.href; });
+    }
+    void openBlog().catch(() => { message.textContent = "博客未运行，请点击底部“启动页”启动博客。"; });
+  </script>
+</ManagerLayout>
