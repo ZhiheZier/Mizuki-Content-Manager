@@ -4,6 +4,7 @@ const element = <T extends HTMLElement>(id: string) => document.getElementById(i
 const pathInput = element<HTMLInputElement>("codeRoot");
 const confirmButton = element<HTMLButtonElement>("confirmProject");
 const launchButton = element<HTMLButtonElement>("launch");
+const blogEditor = element<HTMLButtonElement>("blogEditor");
 const pushButton = element<HTMLButtonElement>("push");
 const retryButton = element<HTMLButtonElement>("retry");
 const statusLabel = element("status");
@@ -36,7 +37,14 @@ function setBusy(value: boolean) {
   launchButton.disabled = value || !selected;
   pushButton.disabled = value;
   retryButton.disabled = value;
-  if (!value) launchButton.textContent = readyUrl ? "进入博客" : "启动并进入博客";
+  blogEditor.disabled = value || !readyUrl;
+  if (!value) renderPreviewControls();
+}
+
+function renderPreviewControls() {
+  launchButton.textContent = readyUrl ? "停止运行" : "启动并进入博客";
+  launchButton.classList.toggle("is-running", Boolean(readyUrl));
+  blogEditor.disabled = busy || !readyUrl;
 }
 
 function savedPreviewUrl(codeRoot: string) {
@@ -54,7 +62,7 @@ async function refreshPreview() {
     const state = await request<{ ready: boolean; previewUrl?: string }>("/api/preview/status", { project: { codeRoot: project.codeRoot }, previewUrl: savedPreviewUrl(project.codeRoot) });
     if (selected !== project) return;
     readyUrl = state.ready ? state.previewUrl || "" : "";
-    launchButton.textContent = readyUrl ? "进入博客" : "启动并进入博客";
+    renderPreviewControls();
     statusLabel.textContent = readyUrl ? "博客运行中" : "仓库已确认";
   } finally { checkingPreview = false; }
 }
@@ -121,7 +129,19 @@ async function launch() {
     if (!result.ready || !result.previewUrl) { statusLabel.textContent = "博客尚未就绪，可稍后重试"; return; }
     readyUrl = result.previewUrl;
     enterWorkspace(readyUrl);
-  } finally { launchButton.textContent = readyUrl ? "进入博客" : "启动并进入博客"; }
+  } finally { renderPreviewControls(); }
+}
+
+async function stop() {
+  if (!selected) return;
+  statusLabel.textContent = "正在停止博客…";
+  launchButton.textContent = "正在停止…";
+  const result = await request<{ message: string }>("/api/preview/stop", { project: { codeRoot: selected.codeRoot } });
+  readyUrl = "";
+  sessionStorage.removeItem("mcm-workspace");
+  log(result.message);
+  statusLabel.textContent = "博客已停止";
+  renderPreviewControls();
 }
 
 element<HTMLFormElement>("projectForm").addEventListener("submit", (event) => {
@@ -129,14 +149,18 @@ element<HTMLFormElement>("projectForm").addEventListener("submit", (event) => {
   if (busy) return;
   if (selected) {
     selected = null; readyUrl = ""; pathInput.readOnly = false; confirmButton.textContent = "确定";
-    launchButton.textContent = "启动并进入博客";
+    renderPreviewControls();
     element("projectDetails").hidden = true; element("gitBlock").hidden = true;
     launchButton.disabled = true; statusLabel.textContent = "等待确认仓库"; pathInput.focus();
     return;
   }
   void run(confirmProject);
 });
-launchButton.addEventListener("click", () => void run(launch));
+launchButton.addEventListener("click", () => void run(readyUrl ? stop : launch));
+blogEditor.addEventListener("click", () => void run(async () => {
+  await refreshPreview();
+  if (readyUrl) enterWorkspace(readyUrl);
+}));
 retryButton.addEventListener("click", () => void run(launch));
 pushButton.addEventListener("click", () => void run(async () => {
   if (!selected) return;
@@ -155,7 +179,7 @@ window.addEventListener("pageshow", (event) => {
 window.setInterval(() => {
   if (!busy && selected) void refreshPreview().catch(() => {
     readyUrl = "";
-    launchButton.textContent = "启动并进入博客";
+    renderPreviewControls();
     statusLabel.textContent = "暂时无法确认博客状态";
   });
 }, 10000);

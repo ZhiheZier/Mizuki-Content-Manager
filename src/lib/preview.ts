@@ -1,4 +1,7 @@
-import { spawn, type ChildProcess } from "node:child_process";
+import { execFile, spawn, type ChildProcess } from "node:child_process";
+import fs from "node:fs";
+import path from "node:path";
+import { promisify } from "node:util";
 import { DEFAULT_DEV_COMMAND, looksLikeMizukiRepo, type ResolvedProject } from "./source";
 import { previewGitEnvironment } from "./git";
 import { redactCredentials } from "./logs";
@@ -15,6 +18,18 @@ let meta: { codeRoot: string; command: string; startedAt: number } | null = null
 let lastOutput = "";
 let lastPreviewUrl = "";
 let lastProjectRoot = "";
+const execFileAsync = promisify(execFile);
+
+function projectServerRecord(project: ResolvedProject) {
+  for (const root of [project.codeRoot, path.join(project.codeRoot, ".content-workspace")]) {
+    try {
+      const record = JSON.parse(fs.readFileSync(path.join(root, ".astro", "dev.json"), "utf8"));
+      const url = new URL(record.url);
+      if (["localhost", "127.0.0.1", "[::1]"].includes(url.hostname) && ["http:", "https:"].includes(url.protocol) && !url.username && !url.password) return { root, url: url.origin };
+    } catch {}
+  }
+  return null;
+}
 
 function commandParts(command: string) {
   const parts = command.trim().split(/\s+/).filter(Boolean);
@@ -115,7 +130,7 @@ export async function checkPreviewStatus(project: ResolvedProject, knownUrl = ""
   if (lastProjectRoot && lastProjectRoot !== project.codeRoot) {
     return { running: false, ready: false, message: "当前仓库的博客未启动。" };
   }
-  const candidate = lastPreviewUrl || knownUrl;
+  const candidate = lastPreviewUrl || knownUrl || projectServerRecord(project)?.url || "";
   try {
     const url = new URL(candidate);
     if (!["localhost", "127.0.0.1", "[::1]"].includes(url.hostname) || !["http:", "https:"].includes(url.protocol) || url.username || url.password) throw new Error("Invalid preview URL");
@@ -232,14 +247,63 @@ export async function startPreview(project: ResolvedProject, command = DEFAULT_D
   });
 }
 
-export async function stopPreview() {
-  if (!processRef) return { running: false, message: "预览服务未启动。" };
-  if (processRef.exitCode === null) {
-    if (process.platform === "win32" && processRef.pid) {
-      spawn("taskkill", ["/pid", String(processRef.pid), "/T", "/F"], { stdio: "ignore", windowsHide: true });
-    } else {
-      processRef.kill();
+export async function stopPreview(project: ResolvedProject) {
+  const status = await checkPreviewStatus(project);
+  const record = projectServerRecord(project);
+  const child = meta?.codeRoot === project.codeRoot ? processRef : null;
+  let stoppedWindowsProcess = false;
+  if (process.platform === "win32" && status.previewUrl) {
+    // Match the listener to this repository before terminating its process tree.
+    const script = `
+      $portNumber = [int]$env:MCM_PREVIEW_PORT
+      $processIds = @(Get-NetTCPConnection -LocalPort $portNumber -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique)
+      $blogProcessIds = @()
+      foreach ($processId in $processIds) {
+        $entry = Get-CimInstance Win32_Process -Filter ('ProcessId = ' + $processId)
+        if ($entry.CommandLine -and $entry.CommandLine.IndexOf($env:MCM_CODE_ROOT, [StringComparison]::OrdinalIgnoreCase) -ge 0 -and [regex]::IsMatch($entry.CommandLine, '(?i)astro[\\\\/]')) { $blogProcessIds += $processId }
+      }
+      ConvertTo-Json -InputObject $blogProcessIds -Compress
+    `;
+    const { stdout } = await execFileAsync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script], {
+      env: { ...process.env, MCM_CODE_ROOT: project.codeRoot, MCM_PREVIEW_PORT: new URL(status.previewUrl).port },
+      windowsHide: true,
+      timeout: 15000
+    });
+    const processIds: unknown = JSON.parse(stdout.trim() || "[]");
+    if (Array.isArray(processIds)) {
+      for (const pid of processIds) {
+        if (!Number.isInteger(pid) || pid <= 0) continue;
+        await execFileAsync("taskkill", ["/pid", String(pid), "/T", "/F"], { windowsHide: true, timeout: 15000 });
+        stoppedWindowsProcess = true;
+      }
     }
+  }
+  if (record) {
+    const astroRoot = path.join(project.codeRoot, "node_modules", "astro");
+    const astroPackage = JSON.parse(fs.readFileSync(path.join(astroRoot, "package.json"), "utf8"));
+    const bin = typeof astroPackage.bin === "string" ? astroPackage.bin : astroPackage.bin?.astro;
+    if (typeof bin !== "string") throw new Error("无法定位博客的 Astro 启动程序。");
+    await execFileAsync(process.execPath, [path.resolve(astroRoot, bin), "dev", "stop", "--root", record.root], {
+      cwd: record.root,
+      env: { ...previewGitEnvironment(project.codeRoot, project.contentRoot), ASTRO_TELEMETRY_DISABLED: "1" },
+      windowsHide: true,
+      timeout: 15000,
+      maxBuffer: 1024 * 1024
+    });
+  } else if (!stoppedWindowsProcess && child && child.exitCode === null) {
+    if (process.platform === "win32" && child.pid) {
+      await execFileAsync("taskkill", ["/pid", String(child.pid), "/T", "/F"], { windowsHide: true, timeout: 15000 });
+    } else { child.kill(); }
+  } else if (!stoppedWindowsProcess && status.ready) {
+    return { ok: false, running: true, message: "博客仍在运行，但无法定位所属进程；请在启动它的终端停止服务。" };
+  }
+  const url = status.previewUrl || record?.url;
+  for (let attempt = 0; url && attempt < 10; attempt++) {
+    if (!(await isPreviewReady(url))) break;
+    await sleep(500);
+  }
+  if (url && await isPreviewReady(url)) {
+    return { ok: false, running: true, message: "博客仍可访问，停止未完成，请重试。" };
   }
   processRef = null;
   meta = null;

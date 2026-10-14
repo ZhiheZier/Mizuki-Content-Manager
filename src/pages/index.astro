@@ -7,7 +7,6 @@ import Icon from "../components/Icon.astro";
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" href="/favicon/favicon.ico" sizes="64x64" />
-    <link rel="preload" href="/theme/ZenMaruGothic-Medium.woff2" as="font" type="font/woff2" crossorigin />
     <script is:inline>
       try {
         const theme = localStorage.getItem("mcm-theme");
@@ -24,6 +23,7 @@ import Icon from "../components/Icon.astro";
         <a class="brand" href="/" aria-label="Mizuki Content Manager"><img src="/theme/mizuki-icon.webp" alt="" width="28" height="28" /><span>Mizuki CM</span></a>
         <nav aria-label="主导航">
           <a class="nav-link active" href="/" aria-current="page">启动页</a>
+          <button id="blogEditor" class="nav-link" type="button" disabled>博客编辑</button>
           <a class="nav-link" href="#logs">运行日志</a>
         </nav>
         <div class="nav-tools">
@@ -105,7 +105,6 @@ import Icon from "../components/Icon.astro";
   </body>
 </html>
 <style>
-  @font-face { font-family: Mizuki; src: url('/theme/ZenMaruGothic-Medium.woff2') format('woff2'); font-weight: 500; font-display: swap; }
   :global(:root) {
     --hue: 240;
     --primary: oklch(.70 .14 var(--hue));
@@ -140,14 +139,15 @@ import Icon from "../components/Icon.astro";
   }
   :global(*) { box-sizing: border-box; }
   :global([hidden]) { display: none !important; }
-  :global(body) { margin: 0; color: var(--text); background: var(--page-bg); font-family: Mizuki, system-ui, sans-serif; font-size: 14px; font-weight: 500; font-synthesis: none; letter-spacing: 0; line-height: 1.6; transition: background .2s, color .2s; }
+  :global(body) { margin: 0; color: var(--text); background: var(--page-bg); font-family: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji"; font-size: 14px; font-weight: 400; font-synthesis: none; letter-spacing: 0; line-height: 1.6; transition: background .2s, color .2s; }
   :global(html) { scroll-behavior: smooth; scroll-padding-top: 100px; }
   header { position: sticky; top: 12px; z-index: 20; padding: 12px 24px 0; }
   .nav-inner { max-width: 1100px; margin: auto; height: 72px; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 10px 20px; background: var(--card-bg); border-radius: 12px; box-shadow: 0 2px 8px rgb(0 0 0 / .05); }
-  .brand { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 8px; color: var(--text); text-decoration: none; font-size: 18px; font-weight: 500; white-space: nowrap; }
+  .brand { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 8px; color: var(--text); text-decoration: none; font-size: 18px; font-weight: 400; white-space: nowrap; }
   .brand img { display: block; width: 28px; height: 28px; object-fit: contain; }
   nav { display: flex; align-items: center; gap: 4px; }
   .nav-link { display: flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 16px; border-radius: 8px; color: var(--text); white-space: nowrap; }
+  button.nav-link { background: transparent; }
   .brand:hover, .nav-link:hover, .icon-button:hover { background: var(--btn-bg); color: var(--btn-content); }
   .nav-link.active { background: var(--btn-bg); color: var(--btn-content); }
   .nav-tools { position: relative; display: flex; align-items: center; gap: 4px; }
@@ -163,12 +163,12 @@ import Icon from "../components/Icon.astro";
   .hue-preset { min-height: 24px; width: 24px; height: 24px; padding: 0; border-radius: 50%; background: var(--swatch); border: 3px solid var(--card-bg); outline: 1px solid transparent; }
   .hue-preset:hover:not(:disabled) { background: var(--swatch); outline-color: var(--muted); }
   .hue-preset[aria-pressed="true"] { outline-color: var(--text); }
-  h1 { margin: 8px 0 0; font-size: 26px; font-weight: 500; line-height: 1.3; }
+  h1 { margin: 8px 0 0; font-size: 26px; font-weight: 400; line-height: 1.3; }
   .eyebrow { color: var(--muted); font-size: 12px; }
   main { max-width: 900px; margin: 0 auto; padding: 36px 32px 28px; }
   .heading h1::before, .section-head h2::before { content: ''; display: inline-block; width: 4px; height: .9em; border-radius: 4px; margin-right: 10px; background: var(--primary); }
   .heading p { color: var(--muted); margin: 10px 0 24px; }
-  label { display: block; font-weight: 500; margin-bottom: 10px; }
+  label { display: block; font-weight: 400; margin-bottom: 10px; }
   .path-row { display: flex; gap: 10px; }
   input { flex: 1; min-width: 0; height: 44px; border: 1px solid var(--line); border-radius: 8px; background: var(--card-bg); color: var(--text); padding: 0 14px; font: inherit; }
   input:read-only { background: var(--field-bg); color: var(--muted); }
@@ -179,7 +179,7 @@ import Icon from "../components/Icon.astro";
   input:focus-visible, button:focus-visible, a:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
   #projectDetails { border-top: 1px solid var(--line); margin-top: 24px; padding-top: 22px; }
   .section-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
-  h2 { margin: 0; font-size: 14px; font-weight: 500; }
+  h2 { margin: 0; font-size: 14px; font-weight: 400; }
   .badge { color: var(--btn-content); background: var(--btn-bg); border-radius: 6px; padding: 4px 10px; font-size: 12px; }
   dl { display: grid; grid-template-columns: 88px minmax(0, 1fr); gap: 14px; margin: 22px 0; }
   dt { color: var(--muted); } dd { margin: 0; overflow-wrap: anywhere; }
@@ -187,8 +187,12 @@ import Icon from "../components/Icon.astro";
   .notice p { margin: 0 0 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
   #gitBlock button { margin: 4px 8px 4px 0; }
   .launch-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 26px 0; }
-  #status { color: var(--muted); } .primary { background: var(--primary); color: #102c45; min-height: 44px; }
-  .primary:hover:not(:disabled) { background: var(--btn-hover); color: var(--btn-content); }
+  #status { color: var(--muted); } .primary { background: var(--btn-bg); color: var(--btn-content); min-height: 44px; }
+  .primary:hover:not(:disabled) { background: var(--btn-hover); }
+  .primary.is-running { background: #fbe9e9; color: #a53039; }
+  .primary.is-running:hover:not(:disabled) { background: #f6d7d9; }
+  :global(.dark) .primary.is-running { background: #44282d; color: #ffb6bc; }
+  :global(.dark) .primary.is-running:hover:not(:disabled) { background: #553038; }
   .logs { border-top: 1px solid var(--line); padding-top: 18px; margin-top: 8px; }
   .text-button { border: none; background: transparent; color: var(--muted); font-size: 12px; min-height: 30px; padding: 0 8px; }
   pre { height: 180px; overflow: auto; padding: 18px; margin: 12px 0 0; border: 0; border-radius: var(--radius); background: var(--card-bg); color: var(--muted); font: inherit; font-size: 12px; line-height: 1.8; white-space: pre-wrap; overflow-wrap: anywhere; scrollbar-width: thin; scrollbar-color: var(--btn-hover) transparent; }
