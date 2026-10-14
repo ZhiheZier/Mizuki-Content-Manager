@@ -6,6 +6,7 @@ export default defineConfig({
     mode: "standalone"
   }),
   output: "server",
+  devToolbar: { enabled: false },
   server: {
     host: "127.0.0.1",
     port: 5173
