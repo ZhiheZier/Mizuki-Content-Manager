@@ -76,10 +76,20 @@ async function run(action: () => Promise<void>) {
   } finally { setBusy(false); }
 }
 
-async function confirmProject() {
-  const data = await request<{ project: LauncherProject; summary: string }>("/api/project", { codeRoot: pathInput.value });
-  await request("/api/config", { codeRoot: data.project.codeRoot });
+async function confirmProject(restore = false) {
+  let data: { project: LauncherProject; summary: string } | undefined;
+  if (restore) {
+    try {
+      const cached = JSON.parse(sessionStorage.getItem("mcm-project") || "null");
+      if (cached?.codeRoot === pathInput.value && ["integrated", "separated"].includes(cached.contentMode) && typeof cached.contentRoot === "string" && typeof cached.contentRepoUrl === "string") {
+        data = { project: cached, summary: "" };
+      }
+    } catch {}
+  }
+  data ??= await request<{ project: LauncherProject; summary: string }>("/api/project", { codeRoot: pathInput.value });
+  if (!restore) await request("/api/config", { codeRoot: data.project.codeRoot });
   selected = data.project;
+  try { sessionStorage.setItem("mcm-project", JSON.stringify(selected)); } catch {}
   pathInput.value = selected.codeRoot;
   pathInput.readOnly = true;
   confirmButton.textContent = "修改";
@@ -94,7 +104,7 @@ async function confirmProject() {
   element("syncNotice").hidden = !separated;
   element("gitBlock").hidden = true;
   statusLabel.textContent = "仓库已确认";
-  log(data.summary);
+  if (!restore) log(data.summary);
   await refreshPreview();
 }
 
@@ -164,7 +174,7 @@ pushButton.addEventListener("click", () => void run(async () => {
 }));
 void run(async () => {
   const data = await request<{ config: { codeRoot?: string } }>("/api/config");
-  if (data.config.codeRoot) { pathInput.value = data.config.codeRoot; await confirmProject(); }
+  if (data.config.codeRoot) { pathInput.value = data.config.codeRoot; await confirmProject(true); }
 });
 window.addEventListener("pageshow", (event) => {
   if (event.persisted && !busy) void run(refreshPreview);
