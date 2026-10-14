@@ -33,9 +33,10 @@ function appendOutput(chunk: unknown) {
   if (detectedUrl) lastPreviewUrl = detectedUrl;
 }
 
-function spawnPreview(command: string, project: ResolvedProject) {
+function spawnPreview(command: string, project: ResolvedProject, useSystemFonts = false) {
   const cwd = project.codeRoot;
   const env = { ...previewGitEnvironment(project.codeRoot, project.contentRoot), ASTRO_DEV_TOOLBAR: "false" };
+  if (useSystemFonts) Object.assign(env, { MIZUKI_FONT_MODE: "system" });
   if (process.platform !== "win32") {
     const [cmd, ...args] = commandParts(command);
     return spawn(cmd, args, {
@@ -109,7 +110,7 @@ export function previewStatus(): PreviewResult {
   return { running: false, previewUrl, message: `预览服务已退出，退出码 ${code}。\n${lastOutput}`.trim() };
 }
 
-export async function startPreview(project: ResolvedProject, command = DEFAULT_DEV_COMMAND): Promise<PreviewResult> {
+export async function startPreview(project: ResolvedProject, command = DEFAULT_DEV_COMMAND, useSystemFonts = false): Promise<PreviewResult> {
   if (processRef && processRef.exitCode === null) {
     const previewUrl = await currentReadyUrl(project.previewUrl);
     return { ...previewStatus(), ready: Boolean(previewUrl), previewUrl: previewUrl || lastPreviewUrl || project.previewUrl };
@@ -126,7 +127,7 @@ export async function startPreview(project: ResolvedProject, command = DEFAULT_D
   lastOutput = "";
   lastPreviewUrl = "";
 
-  const child = spawnPreview(command, project);
+  const child = spawnPreview(command, project, useSystemFonts);
   processRef = child;
   meta = { codeRoot: project.codeRoot, command, startedAt: Date.now() };
   child.stdout?.on("data", appendOutput);
@@ -176,8 +177,16 @@ export async function startPreview(project: ResolvedProject, command = DEFAULT_D
     child.once("exit", async (code) => {
       await sleep(100);
       const detectedUrl = detectPreviewUrl(lastOutput) || lastPreviewUrl;
+      const fontDownloadFailed = lastOutput.includes("CannotFetchFontFile");
       processRef = null;
       meta = null;
+      if (!settled && !useSystemFonts && fontDownloadFailed) {
+        settled = true;
+        clearTimeout(timer);
+        const retry = await startPreview(project, command, true);
+        resolve({ ...retry, message: `远程字体下载失败，已使用系统字体重试本地预览（字体外观可能不同）。\n${retry.message}` });
+        return;
+      }
       if (detectedUrl) {
         isPreviewReady(detectedUrl).then((ready) => {
           finish({
