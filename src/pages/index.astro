@@ -1,4 +1,5 @@
 ---
+import Icon from "../components/Icon.astro";
 ---
 <!doctype html>
 <html lang="zh-CN">
@@ -11,15 +12,36 @@
       try {
         const theme = localStorage.getItem("mcm-theme");
         document.documentElement.classList.toggle("dark", theme === "dark" || (!theme && matchMedia("(prefers-color-scheme: dark)").matches));
+        const hue = localStorage.getItem("mcm-hue");
+        if (hue !== null && Number.isFinite(Number(hue))) document.documentElement.style.setProperty("--hue", String(Math.max(0, Math.min(360, Number(hue)))));
       } catch {}
     </script>
     <title>Mizuki Content Manager</title>
   </head>
   <body>
-    <header><div class="nav-inner"><a class="brand" href="/" aria-label="Mizuki Content Manager"><img src="/logo.png" alt="Mizuki" width="122" height="40" /><span>Content Manager</span></a><span class="local">本地工作区</span><label class="theme-switch" title="切换深色模式"><span>深色</span><input id="themeToggle" type="checkbox" role="switch" aria-label="深色模式" /><span class="switch-track" aria-hidden="true"></span></label></div></header>
-    <div class="banner"><div class="banner-content"><span class="banner-label">MIZUKI</span><h1>Mizuki Content Manager</h1><p>内容编辑与预览</p></div></div>
+    <header>
+      <div class="nav-inner">
+        <a class="brand" href="/" aria-label="Mizuki Content Manager"><Icon name="House" /><span>Mizuki CM</span></a>
+        <nav aria-label="主导航">
+          <a class="nav-link active" href="/" aria-current="page">启动页</a>
+          <a class="nav-link" href="/editor">内容编辑器</a>
+          <a class="nav-link" href="#logs">运行日志</a>
+        </nav>
+        <div class="nav-tools">
+          <button id="appearanceToggle" class="icon-button" type="button" title="外观设置" aria-label="外观设置" aria-expanded="false" aria-controls="appearancePanel"><Icon name="Palette" /></button>
+          <button id="themeToggle" class="icon-button" type="button" title="切换深色模式" aria-label="切换深色模式" aria-pressed="false"><Icon name="Sun" class="sun-icon" /><Icon name="Moon" class="moon-icon" /></button>
+          <div id="appearancePanel" class="appearance-panel" hidden>
+            <div class="section-head"><label for="themeHue">主题色</label><span class="color-preview" aria-hidden="true"></span></div>
+            <input id="themeHue" type="range" min="0" max="360" value="240" />
+            <div class="hue-presets">
+              {[{hue: 240, name: "蓝色"}, {hue: 160, name: "绿色"}, {hue: 30, name: "珊瑚色"}, {hue: 345, name: "粉色"}, {hue: 290, name: "紫色"}].map(({hue, name}) => <button class="hue-preset" type="button" data-hue={hue} style={`--swatch: oklch(.70 .14 ${hue})`} aria-label={name} title={name} aria-pressed={hue === 240}></button>)}
+            </div>
+          </div>
+        </div>
+      </div>
+    </header>
     <main>
-      <div class="heading"><h2>打开博客</h2><p>选择你的 Mizuki 代码仓库。</p></div>
+      <div class="heading"><span class="eyebrow">本地工作区</span><h1>打开博客</h1><p>选择你的 Mizuki 代码仓库。</p></div>
       <form id="projectForm">
         <label for="codeRoot">代码仓库路径</label>
         <div class="path-row"><input id="codeRoot" name="codeRoot" placeholder="D:/Projects/your-mizuki-blog" autocomplete="off" required /><button id="confirmProject" type="submit">确定</button></div>
@@ -31,16 +53,54 @@
       </section>
       <div class="launch-row"><span id="status" role="status" aria-live="polite">等待选择仓库</span><button id="launch" class="primary" disabled>启动并进入博客</button></div>
       <section id="gitBlock" class="notice" hidden><p id="gitMessage"></p><button id="push" type="button">提交并推送内容</button><button id="retry" type="button">重新检查并启动</button></section>
-      <section class="logs"><div class="section-head"><h2>运行日志</h2><button id="clearLog" class="text-button" type="button">清空显示</button></div><pre id="log" aria-live="polite">暂无日志</pre></section>
-      <footer><a href="/editor">打开现有内容编辑器</a><span>Mizuki Content Manager</span></footer>
+      <section id="logs" class="logs"><div class="section-head"><h2>运行日志</h2><button id="clearLog" class="text-button" type="button">清空显示</button></div><pre id="log" aria-live="polite">暂无日志</pre></section>
+      <footer><span>Mizuki Content Manager</span><span>内容编辑与预览</span></footer>
     </main>
     <script src="../scripts/launcher.ts"></script>
     <script>
-      const toggle = document.getElementById("themeToggle") as HTMLInputElement;
-      toggle.checked = document.documentElement.classList.contains("dark");
-      toggle.addEventListener("change", () => {
-        document.documentElement.classList.toggle("dark", toggle.checked);
-        try { localStorage.setItem("mcm-theme", toggle.checked ? "dark" : "light"); } catch {}
+      const toggle = document.getElementById("themeToggle") as HTMLButtonElement;
+      function updateThemeButton() {
+        const dark = document.documentElement.classList.contains("dark");
+        const label = dark ? "切换浅色模式" : "切换深色模式";
+        toggle.setAttribute("aria-pressed", String(dark));
+        toggle.setAttribute("aria-label", label);
+        toggle.title = label;
+      }
+      updateThemeButton();
+      toggle.addEventListener("click", () => {
+        const dark = document.documentElement.classList.toggle("dark");
+        try { localStorage.setItem("mcm-theme", dark ? "dark" : "light"); } catch {}
+        updateThemeButton();
+      });
+      const appearanceButton = document.getElementById("appearanceToggle") as HTMLButtonElement;
+      const panel = document.getElementById("appearancePanel")!;
+      const hueInput = document.getElementById("themeHue") as HTMLInputElement;
+      const swatches = Array.from(document.querySelectorAll<HTMLButtonElement>(".hue-preset"));
+      function updateHue(value: string) {
+        document.documentElement.style.setProperty("--hue", value);
+        swatches.forEach((swatch) => swatch.setAttribute("aria-pressed", String(swatch.dataset.hue === value)));
+      }
+      hueInput.value = getComputedStyle(document.documentElement).getPropertyValue("--hue").trim();
+      updateHue(hueInput.value);
+      function setPanel(open: boolean) {
+        panel.hidden = !open;
+        appearanceButton.setAttribute("aria-expanded", String(open));
+      }
+      appearanceButton.addEventListener("click", () => setPanel(panel.hidden));
+      hueInput.addEventListener("input", () => {
+        updateHue(hueInput.value);
+        try { localStorage.setItem("mcm-hue", hueInput.value); } catch {}
+      });
+      swatches.forEach((swatch) => swatch.addEventListener("click", () => {
+        hueInput.value = swatch.dataset.hue!;
+        updateHue(hueInput.value);
+        try { localStorage.setItem("mcm-hue", hueInput.value); } catch {}
+      }));
+      document.addEventListener("click", (event) => {
+        if (event.target instanceof Node && !panel.contains(event.target) && !appearanceButton.contains(event.target)) setPanel(false);
+      });
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && !panel.hidden) { setPanel(false); appearanceButton.focus(); }
       });
     </script>
   </body>
@@ -82,26 +142,33 @@
   :global(*) { box-sizing: border-box; }
   :global([hidden]) { display: none !important; }
   :global(body) { margin: 0; color: var(--text); background: var(--page-bg); font-family: Mizuki, system-ui, sans-serif; font-size: 14px; letter-spacing: 0; line-height: 1.6; transition: background .2s, color .2s; }
-  header { background: var(--card-bg); position: relative; z-index: 1; }
-  .nav-inner { max-width: 1120px; margin: auto; min-height: 72px; display: flex; align-items: center; gap: 22px; padding: 12px 32px; }
-  .brand { display: flex; align-items: center; gap: 16px; color: var(--text); text-decoration: none; font-weight: 600; }
-  header img { object-fit: contain; }
-  .local { margin-left: auto; color: var(--muted); font-size: 12px; }
-  .theme-switch { display: flex; align-items: center; gap: 8px; margin: 0; cursor: pointer; color: var(--muted); font-size: 12px; }
-  .theme-switch input { position: absolute; opacity: 0; width: 1px; height: 1px; }
-  .switch-track { width: 34px; height: 20px; border-radius: 20px; background: var(--btn-bg); position: relative; border: 1px solid var(--line); }
-  .switch-track::after { content: ''; position: absolute; width: 12px; height: 12px; top: 3px; left: 3px; border-radius: 50%; background: var(--btn-content); transition: transform .2s; }
-  .theme-switch input:checked + .switch-track::after { transform: translateX(14px); }
-  .theme-switch input:focus-visible + .switch-track { outline: 2px solid var(--primary); outline-offset: 3px; }
-  .banner { height: 240px; background: url('/theme/banner.webp') center 20% / cover; }
-  .banner-content { max-width: 1120px; height: 100%; margin: auto; padding: 28px 32px; display: flex; flex-direction: column; justify-content: end; color: white; text-shadow: 0 2px 8px #183951; }
-  .banner-label { font-size: 11px; font-weight: 600; }
-  h1 { margin: 4px 0; font-size: 30px; line-height: 1.3; }
-  .banner p { margin: 2px 0 0; }
-  main { max-width: 900px; margin: 0 auto; padding: 32px 32px 28px; }
-  .heading h2 { font-size: 23px; }
-  .heading h2::before, .section-head h2::before { content: ''; display: inline-block; width: 4px; height: .9em; border-radius: 4px; margin-right: 10px; background: var(--primary); }
-  .heading p { color: var(--muted); margin: 8px 0 26px; }
+  :global(html) { scroll-behavior: smooth; scroll-padding-top: 100px; }
+  header { position: sticky; top: 12px; z-index: 20; padding: 12px 24px 0; }
+  .nav-inner { max-width: 1100px; margin: auto; height: 72px; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 10px 20px; background: var(--card-bg); border-radius: 12px; box-shadow: 0 2px 8px rgb(0 0 0 / .05); }
+  .brand { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 8px; color: var(--text); text-decoration: none; font-size: 18px; font-weight: 600; white-space: nowrap; }
+  .brand :global(svg) { color: var(--primary); }
+  nav { display: flex; align-items: center; gap: 4px; }
+  .nav-link { display: flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 16px; border-radius: 8px; color: var(--text); white-space: nowrap; }
+  .brand:hover, .nav-link:hover, .icon-button:hover { background: var(--btn-bg); color: var(--btn-content); }
+  .nav-link.active { background: var(--btn-bg); color: var(--btn-content); font-weight: 600; }
+  .nav-tools { position: relative; display: flex; align-items: center; gap: 4px; }
+  .icon-button { display: grid; place-items: center; width: 44px; height: 44px; padding: 0; flex-shrink: 0; background: transparent; color: var(--text); }
+  #themeToggle :global(.moon-icon) { display: none; }
+  :global(.dark) #themeToggle :global(.moon-icon) { display: block; }
+  :global(.dark) #themeToggle :global(.sun-icon) { display: none; }
+  .appearance-panel { position: absolute; top: 58px; right: 0; width: 236px; padding: 20px; background: var(--card-bg); border-radius: 12px; box-shadow: 0 6px 24px rgb(0 0 0 / .12); border: 1px solid var(--line); }
+  .appearance-panel label { margin: 0; }
+  .color-preview { width: 18px; height: 18px; border-radius: 50%; background: var(--primary); }
+  #themeHue { width: 100%; height: 24px; margin: 18px 0 10px; padding: 0; accent-color: var(--primary); cursor: pointer; }
+  .hue-presets { display: flex; justify-content: space-between; gap: 8px; }
+  .hue-preset { min-height: 24px; width: 24px; height: 24px; padding: 0; border-radius: 50%; background: var(--swatch); border: 3px solid var(--card-bg); outline: 1px solid transparent; }
+  .hue-preset:hover:not(:disabled) { background: var(--swatch); outline-color: var(--muted); }
+  .hue-preset[aria-pressed="true"] { outline-color: var(--text); }
+  h1 { margin: 8px 0 0; font-size: 26px; line-height: 1.3; }
+  .eyebrow { color: var(--muted); font-size: 12px; }
+  main { max-width: 900px; margin: 0 auto; padding: 36px 32px 28px; }
+  .heading h1::before, .section-head h2::before { content: ''; display: inline-block; width: 4px; height: .9em; border-radius: 4px; margin-right: 10px; background: var(--primary); }
+  .heading p { color: var(--muted); margin: 10px 0 24px; }
   label { display: block; font-weight: 600; margin-bottom: 10px; }
   .path-row { display: flex; gap: 10px; }
   input { flex: 1; min-width: 0; height: 44px; border: 1px solid var(--line); border-radius: 8px; background: var(--card-bg); color: var(--text); padding: 0 14px; font: inherit; }
@@ -127,6 +194,6 @@
   .text-button { border: none; background: transparent; color: var(--muted); font-size: 12px; min-height: 30px; padding: 0 8px; }
   pre { height: 180px; overflow: auto; padding: 18px; margin: 12px 0 0; border: 0; border-radius: var(--radius); background: var(--card-bg); color: var(--muted); font: 12px/1.8 ui-monospace, monospace; white-space: pre-wrap; overflow-wrap: anywhere; scrollbar-width: thin; scrollbar-color: var(--btn-hover) transparent; }
   footer { margin-top: 24px; display: flex; justify-content: space-between; gap: 16px; font-size: 12px; color: var(--muted); } a { color: var(--btn-content); text-decoration: none; } a:hover { color: var(--primary); }
-  @media (max-width: 600px) { .nav-inner { padding: 10px 18px; gap: 10px; } .brand { gap: 8px; font-size: 12px; } .brand img { width: 94px; height: 32px; } .local { display: none; } .theme-switch { margin-left: auto; } .banner { height: 180px; } .banner-content { padding: 20px 18px; } h1 { font-size: 24px; max-width: 260px; } main { padding: 26px 18px; } .launch-row { align-items: stretch; flex-direction: column; } footer { flex-wrap: wrap; } }
+  @media (max-width: 600px) { header { padding: 8px 12px 0; top: 8px; } .nav-inner { display: grid; grid-template-columns: minmax(0, 1fr) auto; height: auto; padding: 8px; gap: 6px; } .brand { padding: 6px 8px; font-size: 16px; } .nav-tools { grid-column: 2; grid-row: 1; } nav { grid-column: 1 / -1; grid-row: 2; justify-content: center; } .nav-link { min-height: 38px; padding: 0 14px; } main { padding: 28px 20px; } .launch-row { align-items: stretch; flex-direction: column; } footer { flex-wrap: wrap; } }
   @media (prefers-reduced-motion: reduce) { :global(*) { transition: none !important; } }
 </style>

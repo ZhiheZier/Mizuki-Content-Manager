@@ -12,7 +12,8 @@
   },
   "dependencies": {
     "@astrojs/node": "^9.3.0",
-    "astro": "^5.13.0"
+    "astro": "^5.13.0",
+    "lucide": "^1.56.0"
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.4",
