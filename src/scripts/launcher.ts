@@ -10,6 +10,8 @@ const statusLabel = element("status");
 const logView = element("log");
 let selected: LauncherProject | null = null;
 let busy = false;
+let readyUrl = "";
+let checkingPreview = false;
 const lines: string[] = [];
 
 function log(message: string) {
@@ -34,6 +36,33 @@ function setBusy(value: boolean) {
   launchButton.disabled = value || !selected;
   pushButton.disabled = value;
   retryButton.disabled = value;
+  if (!value) launchButton.textContent = readyUrl ? "进入博客" : "启动并进入博客";
+}
+
+function savedPreviewUrl(codeRoot: string) {
+  try {
+    const session = JSON.parse(sessionStorage.getItem("mcm-workspace") || "null");
+    return session?.codeRoot === codeRoot && typeof session.previewUrl === "string" ? session.previewUrl : "";
+  } catch { return ""; }
+}
+
+async function refreshPreview() {
+  if (!selected || checkingPreview) return;
+  const project = selected;
+  checkingPreview = true;
+  try {
+    const state = await request<{ ready: boolean; previewUrl?: string }>("/api/preview/status", { project: { codeRoot: project.codeRoot }, previewUrl: savedPreviewUrl(project.codeRoot) });
+    if (selected !== project) return;
+    readyUrl = state.ready ? state.previewUrl || "" : "";
+    launchButton.textContent = readyUrl ? "进入博客" : "启动并进入博客";
+    statusLabel.textContent = readyUrl ? "博客运行中" : "仓库已确认";
+  } finally { checkingPreview = false; }
+}
+
+function enterWorkspace(url: string) {
+  if (!selected) return;
+  sessionStorage.setItem("mcm-workspace", JSON.stringify({ codeRoot: selected.codeRoot, previewUrl: url }));
+  window.location.assign("/workspace");
 }
 
 async function run(action: () => Promise<void>) {
@@ -64,10 +93,13 @@ async function confirmProject() {
   element("gitBlock").hidden = true;
   statusLabel.textContent = "仓库已确认";
   log(data.summary);
+  await refreshPreview();
 }
 
 async function launch() {
   if (!selected) return;
+  await refreshPreview();
+  if (readyUrl) { enterWorkspace(readyUrl); return; }
   if (selected.contentMode === "separated") {
     statusLabel.textContent = "检查内容仓库…";
     const { status } = await request<{ status: LauncherGitStatus }>("/api/git/status", { project: { codeRoot: selected.codeRoot } });
@@ -87,16 +119,17 @@ async function launch() {
     const result = await request<{ ready: boolean; previewUrl?: string; message: string }>("/api/preview/start", { project: { codeRoot: selected.codeRoot } });
     log(result.message);
     if (!result.ready || !result.previewUrl) { statusLabel.textContent = "博客尚未就绪，可稍后重试"; return; }
-    sessionStorage.setItem("mcm-workspace", JSON.stringify({ codeRoot: selected.codeRoot, previewUrl: result.previewUrl }));
-    window.location.assign("/workspace");
-  } finally { launchButton.textContent = "启动并进入博客"; }
+    readyUrl = result.previewUrl;
+    enterWorkspace(readyUrl);
+  } finally { launchButton.textContent = readyUrl ? "进入博客" : "启动并进入博客"; }
 }
 
 element<HTMLFormElement>("projectForm").addEventListener("submit", (event) => {
   event.preventDefault();
   if (busy) return;
   if (selected) {
-    selected = null; pathInput.readOnly = false; confirmButton.textContent = "确定";
+    selected = null; readyUrl = ""; pathInput.readOnly = false; confirmButton.textContent = "确定";
+    launchButton.textContent = "启动并进入博客";
     element("projectDetails").hidden = true; element("gitBlock").hidden = true;
     launchButton.disabled = true; statusLabel.textContent = "等待确认仓库"; pathInput.focus();
     return;
@@ -116,3 +149,13 @@ void run(async () => {
   const data = await request<{ config: { codeRoot?: string } }>("/api/config");
   if (data.config.codeRoot) { pathInput.value = data.config.codeRoot; await confirmProject(); }
 });
+window.addEventListener("pageshow", (event) => {
+  if (event.persisted && !busy) void run(refreshPreview);
+});
+window.setInterval(() => {
+  if (!busy && selected) void refreshPreview().catch(() => {
+    readyUrl = "";
+    launchButton.textContent = "启动并进入博客";
+    statusLabel.textContent = "暂时无法确认博客状态";
+  });
+}, 10000);

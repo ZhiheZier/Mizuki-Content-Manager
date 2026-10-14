@@ -14,6 +14,7 @@ let processRef: ChildProcess | null = null;
 let meta: { codeRoot: string; command: string; startedAt: number } | null = null;
 let lastOutput = "";
 let lastPreviewUrl = "";
+let lastProjectRoot = "";
 
 function commandParts(command: string) {
   const parts = command.trim().split(/\s+/).filter(Boolean);
@@ -110,8 +111,28 @@ export function previewStatus(): PreviewResult {
   return { running: false, previewUrl, message: `预览服务已退出，退出码 ${code}。\n${lastOutput}`.trim() };
 }
 
+export async function checkPreviewStatus(project: ResolvedProject, knownUrl = ""): Promise<PreviewResult> {
+  if (lastProjectRoot && lastProjectRoot !== project.codeRoot) {
+    return { running: false, ready: false, message: "当前仓库的博客未启动。" };
+  }
+  const candidate = lastPreviewUrl || knownUrl;
+  try {
+    const url = new URL(candidate);
+    if (!["localhost", "127.0.0.1", "[::1]"].includes(url.hostname) || !["http:", "https:"].includes(url.protocol) || url.username || url.password) throw new Error("Invalid preview URL");
+    if (await isPreviewReady(url.origin)) {
+      lastProjectRoot = project.codeRoot;
+      lastPreviewUrl = url.origin;
+      return { running: true, ready: true, previewUrl: url.origin, message: "博客运行中" };
+    }
+  } catch {}
+  return { running: false, ready: false, message: "博客未启动" };
+}
+
 export async function startPreview(project: ResolvedProject, command = DEFAULT_DEV_COMMAND, useSystemFonts = false): Promise<PreviewResult> {
   if (processRef && processRef.exitCode === null) {
+    if (meta?.codeRoot !== project.codeRoot) {
+      return { running: false, ready: false, message: "另一仓库的预览仍在运行，请先停止该预览后再切换仓库。" };
+    }
     const previewUrl = await currentReadyUrl(project.previewUrl);
     return { ...previewStatus(), ready: Boolean(previewUrl), previewUrl: previewUrl || lastPreviewUrl || project.previewUrl };
   }
@@ -126,6 +147,7 @@ export async function startPreview(project: ResolvedProject, command = DEFAULT_D
 
   lastOutput = "";
   lastPreviewUrl = "";
+  lastProjectRoot = project.codeRoot;
 
   const child = spawnPreview(command, project, useSystemFonts);
   processRef = child;
@@ -221,5 +243,7 @@ export async function stopPreview() {
   }
   processRef = null;
   meta = null;
+  lastPreviewUrl = "";
+  lastProjectRoot = "";
   return { running: false, message: "预览服务已停止。" };
 }

@@ -1,6 +1,6 @@
 ---
-import { House, Palette, Sun, Moon } from "lucide";
-const icons = { House, Palette, Sun, Moon };
+import { Palette, Sun, Moon } from "lucide";
+const icons = { Palette, Sun, Moon };
 interface Props { name: keyof typeof icons; class?: string; }
 const { name, class: className } = Astro.props;
 ---
