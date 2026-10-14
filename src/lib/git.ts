@@ -1,5 +1,7 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import path from "node:path";
+import { redactCredentials } from "./logs";
 import type { ResolvedProject } from "./source";
 
 const execFileAsync = promisify(execFile);
@@ -19,13 +21,27 @@ function gitRepoRoot(project: ResolvedProject) {
 }
 
 async function git(args: string[], cwd: string) {
-  const result = await execFileAsync("git", args, {
+  const result = await execFileAsync("git", ["-c", `safe.directory=${path.resolve(cwd).replaceAll("\\", "/")}`, ...args], {
     cwd,
     windowsHide: true,
     timeout: 120_000,
     maxBuffer: 1024 * 1024
   });
-  return `${result.stdout || ""}${result.stderr || ""}`.trim();
+  return redactCredentials(`${result.stdout || ""}${result.stderr || ""}`).trim();
+}
+
+// Child Git commands inherit trust only for the selected project directories.
+export function previewGitEnvironment(codeRoot: string, contentRoot: string) {
+  const env = { ...process.env };
+  let count = Number.parseInt(env.GIT_CONFIG_COUNT || "0", 10);
+  if (!Number.isFinite(count) || count < 0) count = 0;
+  for (const directory of new Set([codeRoot, contentRoot])) {
+    env[`GIT_CONFIG_KEY_${count}`] = "safe.directory";
+    env[`GIT_CONFIG_VALUE_${count}`] = path.resolve(directory).replaceAll("\\", "/");
+    count++;
+  }
+  env.GIT_CONFIG_COUNT = String(count);
+  return env;
 }
 
 function parseStatus(output: string, repoRoot: string): GitStatus {
@@ -62,7 +78,7 @@ export async function readGitStatus(project: ResolvedProject): Promise<GitStatus
       dirty: false,
       ahead: false,
       branch: "",
-      summary: `不是 Git 仓库或无法读取状态: ${repoRoot}\n${error instanceof Error ? error.message : String(error)}`,
+      summary: `无法读取 Git 状态: ${repoRoot}\n${redactCredentials(error instanceof Error ? error.message : String(error))}`,
       output: ""
     };
   }

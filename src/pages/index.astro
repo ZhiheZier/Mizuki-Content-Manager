@@ -19,7 +19,7 @@
       <section id="projectDetails" hidden aria-label="仓库信息">
         <div class="section-head"><h2>仓库信息</h2><span id="contentMode" class="badge"></span></div>
         <dl><dt>代码仓库</dt><dd id="repoPath"></dd><dt>内容目录</dt><dd id="contentPath"></dd><dt id="remoteLabel" hidden>内容仓库</dt><dd id="remotePath" hidden></dd></dl>
-        <p id="syncNotice" class="notice" hidden>启动博客会同步远程内容。请先推送本地变更，避免被覆盖。</p>
+        <p id="syncNotice" class="notice" hidden>启动前检查内容仓库状态。内容同步方式由所选博客的启动脚本决定。</p>
       </section>
       <div class="launch-row"><span id="status" role="status" aria-live="polite">等待选择仓库</span><button id="launch" class="primary" disabled>启动并进入博客</button></div>
       <section id="gitBlock" class="notice" hidden><p id="gitMessage"></p><button id="push" type="button">提交并推送内容</button><button id="retry" type="button">重新检查并启动</button></section>

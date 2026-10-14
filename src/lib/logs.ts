@@ -6,6 +6,10 @@ const LOG_RETENTION_DAYS = 14;
 const LOG_MAX_FILES = 30;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+export function redactCredentials(text: string) {
+  return text.replace(/(https?:\/\/)[^\s/@]+@/gi, "$1[redacted]@");
+}
+
 function logFileName(date = new Date()) {
   return `${date.toISOString().slice(0, 10)}.log`;
 }
@@ -41,7 +45,7 @@ export function appendAppLog(message: string) {
   fs.mkdirSync(LOG_DIR, { recursive: true });
   cleanupLogs();
   const time = new Date().toISOString();
-  const lines = String(message || "")
+  const lines = redactCredentials(String(message || ""))
     .split(/\r?\n/)
     .map((line) => `[${time}] ${line}`)
     .join("\n");

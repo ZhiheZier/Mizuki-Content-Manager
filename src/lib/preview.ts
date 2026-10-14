@@ -1,5 +1,7 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { DEFAULT_DEV_COMMAND, looksLikeMizukiRepo, type ResolvedProject } from "./source";
+import { previewGitEnvironment } from "./git";
+import { redactCredentials } from "./logs";
 
 type PreviewResult = {
   running: boolean;
@@ -25,14 +27,15 @@ function detectPreviewUrl(text: string) {
 }
 
 function appendOutput(chunk: unknown) {
-  const text = String(chunk || "");
+  const text = redactCredentials(String(chunk || ""));
   lastOutput = `${lastOutput}${text}`.split(/\r?\n/).slice(-20).join("\n");
   const detectedUrl = detectPreviewUrl(text);
   if (detectedUrl) lastPreviewUrl = detectedUrl;
 }
 
-function spawnPreview(command: string, cwd: string) {
-  const env = { ...process.env, ASTRO_DEV_TOOLBAR: "false" };
+function spawnPreview(command: string, project: ResolvedProject) {
+  const cwd = project.codeRoot;
+  const env = { ...previewGitEnvironment(project.codeRoot, project.contentRoot), ASTRO_DEV_TOOLBAR: "false" };
   if (process.platform !== "win32") {
     const [cmd, ...args] = commandParts(command);
     return spawn(cmd, args, {
@@ -123,7 +126,7 @@ export async function startPreview(project: ResolvedProject, command = DEFAULT_D
   lastOutput = "";
   lastPreviewUrl = "";
 
-  const child = spawnPreview(command, project.codeRoot);
+  const child = spawnPreview(command, project);
   processRef = child;
   meta = { codeRoot: project.codeRoot, command, startedAt: Date.now() };
   child.stdout?.on("data", appendOutput);
